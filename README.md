@@ -1,9 +1,9 @@
-# [Project Name]
+# Karry-No-Key
 
-> **One-line pitch:** [Who is this for, and what job does it do for them?]
+> **One-line pitch:** Karaoke on the go. Mini mic and arm device which lets you sing into it to get a song out of your head. Recognizes the song and also adds it to your Spotify playlist!
 
-- **Builder:** [Your Name] (`@github-handle`)
-- **Pod:** [Pod Name / Number]
+- **Builder:** Genny Capper (`@github-handle`)
+- **Pod:** Pod 1
 - **Product Page & Living PRD:** [Add your GitHub Pages URL]
 - **App:** runs locally through Week 4; add a cloud URL in Build 5.
 
