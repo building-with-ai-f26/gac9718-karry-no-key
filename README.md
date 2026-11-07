@@ -1,4 +1,4 @@
-# Karry-No-Key
+# READ ME
 
 > **One-line pitch:** Karaoke on the go. Mini mic and arm device which lets you sing into it to get a song out of your head. Recognizes the song and also adds it to your Spotify playlist!
 
