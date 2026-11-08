@@ -137,6 +137,7 @@
       font-size: 13px;
       color: var(--muted);
     }
+    .stat-note { font-size: 14px; color: var(--muted); margin-top: 6px; }
     .demo-img { display: block; width: 100%; height: auto; border-radius: 12px; margin: 12px 0; }
   </style>
 </head>
@@ -159,7 +160,7 @@
       <h2>Product Showcase (Prototype / Live App / 2-Min Video)</h2>
       <p>
         <strong>Current Status:</strong> <strong>Build 1: local prototype</strong><br />
-        <strong>Demo:</strong>
+        <strong>Demo:</strong> Current happy path screen flow and product render
       </p>
       <img class="demo-img" src="images/karaoke-watch-flow.png" width="2560" height="1520" loading="lazy"
         alt="Three watch screens showing the flow: 1, hold and sing while the watch listens; 2, confirm the match (Dancing Queen by ABBA, 92% match); 3, the song is saved to the Spotify playlist 'Sung It'." />
@@ -173,39 +174,42 @@
       <p class="meta">Updated every week as we test with real users and learn what works.</p>
 
       <h3>1. Target User & The Job to Be Done</h3>
-      <p><strong>Who is this for?</strong> [Name a specific, reachable person or role you have direct access to.]</p>
-      <p><strong>The painful "Before" workflow:</strong> [How do they do this today, and why is it slow, manual, or broken?]</p>
-      <p><strong>The "After" workflow with this product:</strong> [What does your tool do for them in one sitting?]</p>
+      <p><strong>Who is this for?</strong> Anyone who has a song stuck in their head and loves to sing it out loud on the go! For the purpose of a user testing group, this is going to be targeted at NYU Tisch performing arts students, a group of people who might enjoy the novelty of this device, aren’t afraid to sing out loud on the go and would potentially find this device useful for their social lives and their studying.</p>
+      <p><strong>The painful "Before" workflow:</strong> Current ‘what’s that song?!’ offerings such as Shazam, work by matching recorded music and does not work for humming or singing a song. Apps like Google’s hum-to-search and SoundHound can, but they’re phone searches. No one is currently offering a solution in a fun, portable, wearable solution. Nothing turns singing for fun into a way to find and save songs, and karaoke machines and mini mics are bulky and don’t identify or save anything or offer the same level of discreet on-the-go singing!</p>
+      <p><strong>The "After" workflow with this product:</strong> The Karry-No-Key offers a fun and unique way to get the song stuck in your head out of it, recognize what it is and add it to a Spotify playlist, it also offers a fun option of singing your favorite karaoke songs on the go.</p>
 
       <h3>2. Scope & Explicit Non-Goals</h3>
       <ul>
-        <li><strong>In Scope (Core Workflow):</strong> [The 1 main workflow this product does reliably]</li>
-        <li><strong>Out of Scope #1:</strong> [Feature you are deliberately NOT building in 6 weeks]</li>
-        <li><strong>Out of Scope #2:</strong> [Feature you are deliberately NOT building in 6 weeks]</li>
-        <li><strong>Out of Scope #3:</strong> [Feature you are deliberately NOT building in 6 weeks]</li>
+        <li><strong>In Scope (Core Workflow):</strong> Allow users to sing 10–15 seconds of a song into the wired mic, see the identified song on the watch, and add it to a Spotify playlist with one tap</li>
+        <li><strong>Out of Scope #1:</strong> A speaker system from the watch that plays songs out loud</li>
+        <li><strong>Out of Scope #2:</strong> Lyrics from Spotify populating the device screen to allow users to sing along to their song</li>
+        <li><strong>Out of Scope #3:</strong> Lyric-based recognition (turning sung words into text as a backup to melody matching). It would improve accuracy, but it’s too complex for this build, so I’m relying on melody matching alone.</li>
       </ul>
 
       <h3>3. How It Works Under the Hood & Riskiest Assumption (Week 2+)</h3>
-      <p><strong>Riskiest Assumption:</strong> [What is the #1 technical or user risk that could sink this product?]</p>
-      <p><strong>Simple Architecture:</strong> [User Input] → [Your App / Server] → [AI Model / Tool] → [Output]</p>
+      <p><strong>Riskiest Assumption:</strong> The whole build! Parts not arriving in time, the engineer who is supporting me on the build not being able to execute the PRD and specs, the API limitations in linking to Spotify (they have recently tightened up developer mode access).</p>
+      <p>The main risk is that ACRCloud can correctly identify a song from 10–15 seconds of amateur singing recorded on a small wired mic. If it can’t get the right song in its top 3 guesses most of the time, the product doesn’t work.</p>
+      <p><strong>How I’ll test it this week:</strong> record 5 students singing different songs on a laptop mic and run the clips through ACRCloud before any hardware arrives.</p>
+      <p><strong>Simple Architecture:</strong> User sings into wired mini mic → Watch sends clip to Karry-No-Key server → ACRCloud matches the melody → Watch shows the top match with a confirm button → Server adds the song to the user’s Spotify playlist</p>
 
       <h3>4. Unit Economics & Analytics Snapshot (Updated Weekly)</h3>
       <div class="grid-2">
         <div class="stat-box">
           <div class="stat-label">Cumulative Build Spend</div>
-          <div class="stat-value">[Record actual spend]</div>
+          <div class="stat-value">$5.55 to date (projected ~$75–110 total)</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Est. Cost Per User Run</div>
-          <div class="stat-value">[Not yet estimated]</div>
+          <div class="stat-value">~$0.01 per song identified</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">User Evidence (Analytics from Build 2)</div>
-          <div class="stat-value">[Not yet measured]</div>
+          <div class="stat-value">Not yet measured.</div>
+          <div class="stat-note">Will track: match accuracy (% correct first guess / in top 3), seconds to identify, % of matches confirmed, songs saved per session</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Sponsor Call (Week 6)</div>
-          <div class="stat-value">TBD</div>
+          <div class="stat-value">TBC</div>
         </div>
       </div>
     </section>
