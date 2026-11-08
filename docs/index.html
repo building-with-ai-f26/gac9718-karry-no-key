@@ -137,6 +137,7 @@
       font-size: 13px;
       color: var(--muted);
     }
+    .demo-img { display: block; width: 100%; height: auto; border-radius: 12px; margin: 12px 0; }
   </style>
 </head>
 <body>
@@ -157,12 +158,13 @@
     <section id="live-demo">
       <h2>Product Showcase (Prototype / Live App / 2-Min Video)</h2>
       <p>
-        <strong>Current Status:</strong> <strong>Build 1: local prototype</strong> [Build 1: local prototype / Builds 2–4: local app / Build 5: cloud app]<br />
-        <strong>Demo:</strong> [Add a screenshot or GIF now; add the live cloud app URL in Build 5.]
+        <strong>Current Status:</strong> <strong>Build 1: local prototype</strong><br />
+        <strong>Demo:</strong>
       </p>
-      <p class="meta">
-        Ask your coding agent to embed a screenshot or GIF of your local prototype for Build 1. Keep this evidence current, then add your cloud app link and two-minute video in Build 5.
-      </p>
+      <img class="demo-img" src="images/karaoke-watch-flow.png" width="2560" height="1520" loading="lazy"
+        alt="Three watch screens showing the flow: 1, hold and sing while the watch listens; 2, confirm the match (Dancing Queen by ABBA, 92% match); 3, the song is saved to the Spotify playlist 'Sung It'." />
+      <img class="demo-img" src="images/product-render.png" width="2560" height="1600" loading="lazy"
+        alt="Concept render of the pink karaoke watch with a plug-in mini mic: a wired mic plugs into the watch, one button on the mic starts recording, and the watch shows the match and saves it to Spotify." />
     </section>
 
     <!-- LIVING PRD (Updated every week!) -->
