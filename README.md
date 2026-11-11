@@ -43,3 +43,10 @@ cd <your-repo-name>
 ```
 
 If your app needs API keys, use a local environment file such as `.env`. Keep private keys out of source code, browser code, screenshots, and commits. The template ignores `.env`; `.env.example` contains placeholders only.
+
+## Run the laptop version (Build 2)
+
+1. Copy the key template: `cp .env.example .env`, then paste your ACRCloud host, access key and secret into `.env` (this file is never pushed to GitHub).
+2. Start the server: `python3 app/server.py`
+3. Open http://localhost:8000 in Chrome, allow the mic, tap **Tap to sing**, and sing for 12 seconds.
+4. The page shows ACRCloud's top 3 song matches.
