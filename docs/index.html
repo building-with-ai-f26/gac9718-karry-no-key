@@ -9,16 +9,20 @@
        Build 2: paste your project's current PostHog web snippet here,
        then install analytics in the local app and verify events. -->
 
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #fafafa;
+      --bg: #FFF7FA;
       --card: #ffffff;
-      --text: #111827;
-      --muted: #4b5563;
-      --border: #e5e7eb;
-      --accent: #1d63dc;
-      --tag-bg: #eff6ff;
-      --tag-text: #1e40af;
+      --text: #2A1F2D;
+      --muted: #5E4D62;
+      --border: #F3DCE6;
+      --pink: #EE5A93;
+      --accent: #B8336A;
+      --tag-bg: #FFFFFF;
+      --tag-text: #B8336A;
     }
     * { box-sizing: border-box; }
     body {
@@ -31,11 +35,13 @@
     .container {
       max-width: 820px;
       margin: 0 auto;
-      padding: 48px 24px 80px;
+      padding: 32px 24px 80px;
     }
     header {
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 28px;
+      background: var(--pink);
+      color: #fff;
+      border-radius: 20px;
+      padding: 32px 32px 36px;
       margin-bottom: 32px;
     }
     .eyebrow {
@@ -48,18 +54,24 @@
       color: var(--tag-text);
       padding: 4px 10px;
       border-radius: 999px;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
     }
     h1 {
-      font-size: 36px;
-      line-height: 1.15;
-      margin: 0 0 12px;
-      letter-spacing: -0.02em;
+      margin: 0 0 16px;
+    }
+    h1 img {
+      display: block;
+      width: 100%;
+      max-width: 520px;
+      height: auto;
     }
     .tagline {
       font-size: 19px;
-      color: var(--muted);
-      margin: 0 0 20px;
+      color: #fff;
+      margin: 0 0 24px;
+    }
+    h2, h3 {
+      font-family: "Fredoka", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     .cta-row {
       display: flex;
@@ -76,11 +88,23 @@
       background: var(--accent);
       color: #fff;
     }
-    .btn-secondary {
-      background: var(--card);
-      color: var(--text);
-      border: 1px solid var(--border);
+    header .btn {
+      background: #fff;
+      color: var(--accent);
     }
+    .btn-secondary,
+    header .btn-secondary {
+      background: transparent;
+      color: #fff;
+      border: 2px solid #fff;
+    }
+    .btn:focus-visible {
+      outline: 3px solid var(--text);
+      outline-offset: 2px;
+    }
+    a { color: var(--accent); }
+    li, p { overflow-wrap: anywhere; }
+    .caption { font-size: 14px; color: var(--muted); margin: -4px 0 16px; }
     section {
       background: var(--card);
       border: 1px solid var(--border);
@@ -146,7 +170,7 @@
     <!-- HERO / PRODUCT PITCH -->
     <header>
       <span class="eyebrow">NYU Stern · Building with AI · Fall 2026</span>
-      <h1>Karry-No-Key</h1>
+      <h1><img src="images/karry-no-key-logo-white.svg" alt="Karry-No-Key" width="662" height="213" /></h1>
       <p class="tagline">When you've got a song stuck in your head that you just can't help but hum outloud all day. All you need is to Karry-No-Key and be free! Sing into your wearable karaoke device, it recognizes the song instantly and lets you add to a Spotify playlist, all with a simple push of a button!</p>
       <div class="cta-row">
         <a class="btn" href="#live-demo" onclick="window.posthog && posthog.capture('clicked_try_product')">See the Product →</a>
@@ -159,9 +183,12 @@
     <section id="live-demo">
       <h2>Product Showcase (Prototype / Live App / 2-Min Video)</h2>
       <p>
-        <strong>Current Status:</strong> <strong>Build 1: local prototype</strong><br />
-        <strong>Demo:</strong> Current happy path screen flow and product render
+        <strong>Current Status:</strong> <strong>Build 2: laptop version</strong><br />
+        <strong>Demo:</strong> The laptop app running locally, plus the happy path screen flow and product render
       </p>
+      <img class="demo-img" src="images/laptop-app.png" width="1800" height="1100" loading="lazy"
+        alt="The Karry-No-Key laptop app running in Chrome: the pink Karry-No-Key logo, the instruction 'Sing or hum about 12 seconds of the song stuck in your head', and a large pink 'Tap to sing' button." />
+      <p class="caption">Build 2 laptop app running locally (laptop mic → server → ACRCloud). Song matching goes live once my ACRCloud account is unblocked.</p>
       <img class="demo-img" src="images/karaoke-watch-flow.png" width="2560" height="1520" loading="lazy"
         alt="Three watch screens showing the flow: 1, hold and sing while the watch listens; 2, confirm the match (Dancing Queen by ABBA, 92% match); 3, the song is saved to the Spotify playlist 'Sung It'." />
       <img class="demo-img" src="images/product-render.png" width="2560" height="1600" loading="lazy"

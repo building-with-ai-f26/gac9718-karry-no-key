@@ -132,17 +132,25 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    # The only files the page is allowed to load, and what type each one is.
+    STATIC_FILES = {
+        "/": ("index.html", "text/html; charset=utf-8"),
+        "/index.html": ("index.html", "text/html; charset=utf-8"),
+        "/karry-no-key-logo-pink.svg": ("karry-no-key-logo-pink.svg", "image/svg+xml"),
+    }
+
     def do_GET(self):
-        if self.path in ("/", "/index.html"):
-            with open(os.path.join(STATIC_DIR, "index.html"), "rb") as f:
-                data = f.read()
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
-        else:
+        if self.path not in self.STATIC_FILES:
             self.send_error(404)
+            return
+        filename, content_type = self.STATIC_FILES[self.path]
+        with open(os.path.join(STATIC_DIR, filename), "rb") as f:
+            data = f.read()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def do_POST(self):
         if self.path != "/identify":

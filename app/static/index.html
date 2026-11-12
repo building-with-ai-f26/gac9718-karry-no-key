@@ -4,17 +4,22 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Karry-No-Key · Laptop Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
-    :root { --pink: #ff4f9a; --ink: #221a24; --soft: #fff2f7; }
+    :root { --pink: #EE5A93; --pink-dark: #B8336A; --ink: #2A1F2D; --soft: #FFF3F8; }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    body { margin: 0; font-family: "Fredoka", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
            background: var(--soft); color: var(--ink); display: flex; justify-content: center; padding: 32px 16px; }
     main { width: 100%; max-width: 440px; text-align: center; }
-    h1 { margin: 0 0 4px; }
-    .sub { margin: 0 0 28px; opacity: .7; }
+    h1 { margin: 0 0 8px; }
+    h1 img { display: block; width: 100%; max-width: 360px; height: auto; margin: 0 auto; }
+    .sub { margin: 0 0 28px; font-size: 18px; color: #5E4D62; }
     button#rec { width: 180px; height: 180px; border-radius: 50%; border: none; background: var(--pink);
-                 color: #fff; font-size: 20px; font-weight: 700; cursor: pointer;
-                 box-shadow: 0 10px 30px rgba(255,79,154,.35); }
+                 color: #fff; font-family: inherit; font-size: 22px; font-weight: 700; cursor: pointer;
+                 box-shadow: 0 10px 30px rgba(238,90,147,.4); }
+    button#rec:focus-visible { outline: 3px solid var(--pink-dark); outline-offset: 4px; }
     button#rec:disabled { opacity: .5; cursor: default; }
     button#rec.recording { animation: pulse 1s infinite; }
     @keyframes pulse { 50% { transform: scale(1.06); } }
@@ -24,12 +29,12 @@
     .card.top { border: 2px solid var(--pink); }
     .title { font-weight: 700; font-size: 18px; }
     .meta { opacity: .7; font-size: 14px; margin-top: 2px; }
-    .card a { color: var(--pink); font-weight: 600; font-size: 14px; }
+    .card a { color: var(--pink-dark); font-weight: 600; font-size: 14px; }
   </style>
 </head>
 <body>
 <main>
-  <h1>🎤 Karry-No-Key</h1>
+  <h1><img src="/karry-no-key-logo-pink.svg" alt="Karry-No-Key" width="662" height="213" /></h1>
   <p class="sub">Sing or hum about 12 seconds of the song stuck in your head.</p>
   <button id="rec">Tap to sing</button>
   <div id="status"></div>
