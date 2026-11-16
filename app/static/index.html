@@ -31,6 +31,15 @@
     .meta { opacity: .7; font-size: 14px; margin-top: 2px; }
     .card a { color: var(--pink-dark); font-weight: 600; font-size: 14px; }
   </style>
+  <!-- PostHog analytics (project key is public by design; secrets stay in .env) -->
+  <script>
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="Eh Rh Ph Oh Lh qh init yd bd dd fd Sd wc md xd ad Ed Ad Rd Pd Od Fd capture getExtension gr pd gd calculateEventProperties Ld register register_once register_for_session unregister unregister_for_session zd hd jd getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync Hd identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset Ud shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty qd Td createPersonProfile setInternalOrTestUser Bd Uh zh opt_in_capturing opt_out_capturing Hh has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing $d debug kc Ls getPageViewId captureTraceFeedback captureTraceMetric rd".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+    posthog.init('phc_CHj8esjkwBFXBDRnBq6GFavcuJAyKmhJJ9stAEoG4KNJ', {
+        api_host: 'https://us.i.posthog.com',
+        defaults: '2026-05-30',
+        person_profiles: 'identified_only', // or 'always' to create profiles for anonymous users as well
+    })
+  </script>
 </head>
 <body>
 <main>
@@ -44,12 +53,19 @@
 <script>
   const RECORD_SECONDS = 12;
   const TARGET_RATE = 16000; // smaller file, still plenty for voice
+  const QUIET_THRESHOLD = 0.01; // below this, the recording is treated as silence
 
   const btn = document.getElementById("rec");
   const statusEl = document.getElementById("status");
   const resultsEl = document.getElementById("results");
 
+  // Small helper so the app still works if PostHog is blocked (e.g. by an ad blocker).
+  function track(event, props) {
+    if (window.posthog) posthog.capture(event, props || {});
+  }
+
   btn.addEventListener("click", async () => {
+    track("tapped_sing");
     resultsEl.innerHTML = "";
     let stream;
     try {
@@ -79,8 +95,19 @@
     processor.disconnect();
     source.disconnect();
     stream.getTracks().forEach((t) => t.stop());
-    const wav = encodeWav(downsample(flatten(chunks), ctx.sampleRate, TARGET_RATE), TARGET_RATE);
+    const samples = flatten(chunks);
+    const wav = encodeWav(downsample(samples, ctx.sampleRate, TARGET_RATE), TARGET_RATE);
     ctx.close();
+
+    // If the recording is almost silent, don't send it to ACRCloud: tell the singer instead.
+    if (loudness(samples) < QUIET_THRESHOLD) {
+      btn.classList.remove("recording");
+      btn.disabled = false;
+      btn.textContent = "Sing again";
+      statusEl.textContent = "I couldn't hear you! Sing a bit louder and closer to your laptop, and check no other app is using the mic.";
+      track("too_quiet", { loudness: loudness(samples) });
+      return;
+    }
 
     btn.classList.remove("recording");
     btn.textContent = "Listening…";
@@ -100,8 +127,15 @@
   function showResults(data) {
     if (!data.matches || data.matches.length === 0) {
       statusEl.textContent = data.message || "No match found.";
+      track("no_match", { message: data.message || "" });
       return;
     }
+    track("song_matched", {
+      top_title: data.matches[0].title,
+      top_artist: data.matches[0].artist,
+      top_score: data.matches[0].score,
+      match_count: data.matches.length,
+    });
     statusEl.textContent = "Is it one of these?";
     data.matches.forEach((m, i) => {
       const card = document.createElement("div");
@@ -117,10 +151,18 @@
         const a = document.createElement("a");
         a.href = m.spotify_url; a.target = "_blank"; a.rel = "noopener";
         a.textContent = "Open in Spotify →";
+        a.addEventListener("click", () => track("clicked_spotify", { title: m.title, artist: m.artist, rank: i + 1 }));
         card.append(a);
       }
       resultsEl.append(card);
     });
+  }
+
+  // Average volume of the recording (0 = silence, 1 = as loud as possible).
+  function loudness(samples) {
+    let sum = 0;
+    for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
+    return samples.length ? Math.sqrt(sum / samples.length) : 0;
   }
 
   function flatten(chunks) {

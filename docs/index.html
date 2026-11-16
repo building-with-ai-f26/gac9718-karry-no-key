@@ -5,9 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Karry-No-Key · Building with AI (Fall 2026)</title>
 
-  <!-- Week 1: create your PostHog account only.
-       Build 2: paste your project's current PostHog web snippet here,
-       then install analytics in the local app and verify events. -->
+  <!-- PostHog analytics (project key is public by design; secrets stay in .env) -->
+  <script>
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="Eh Rh Ph Oh Lh qh init yd bd dd fd Sd wc md xd ad Ed Ad Rd Pd Od Fd capture getExtension gr pd gd calculateEventProperties Ld register register_once register_for_session unregister unregister_for_session zd hd jd getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync Hd identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset Ud shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty qd Td createPersonProfile setInternalOrTestUser Bd Uh zh opt_in_capturing opt_out_capturing Hh has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing $d debug kc Ls getPageViewId captureTraceFeedback captureTraceMetric rd".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+    posthog.init('phc_CHj8esjkwBFXBDRnBq6GFavcuJAyKmhJJ9stAEoG4KNJ', {
+        api_host: 'https://us.i.posthog.com',
+        defaults: '2026-05-30',
+        person_profiles: 'identified_only', // or 'always' to create profiles for anonymous users as well
+    })
+  </script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -186,9 +192,9 @@
         <strong>Current Status:</strong> <strong>Build 2: laptop version</strong><br />
         <strong>Demo:</strong> The laptop app running locally, plus the happy path screen flow and product render
       </p>
-      <img class="demo-img" src="images/laptop-app.png" width="1800" height="1100" loading="lazy"
-        alt="The Karry-No-Key laptop app running in Chrome: the pink Karry-No-Key logo, the instruction 'Sing or hum about 12 seconds of the song stuck in your head', and a large pink 'Tap to sing' button." />
-      <p class="caption">Build 2 laptop app running locally (laptop mic → server → ACRCloud). Song matching goes live once my ACRCloud account is unblocked.</p>
+      <img class="demo-img" src="images/laptop-app-match.png" width="1246" height="1114" loading="lazy"
+        alt="The Karry-No-Key laptop app after singing: under the pink logo and 'Sing again' button it asks 'Is it one of these?' and shows the top match, Gimme! Gimme! Gimme! (A Man After Midnight) by ABBA, with a match score of 0.96." />
+      <p class="caption">Build 2 laptop app working end to end: I sang into my laptop mic, the server sent the clip to ACRCloud, and it came back with the right song as its top match (ABBA, match score 0.96). It picked a remix rather than the original, so the app now puts original versions first.</p>
       <img class="demo-img" src="images/karaoke-watch-flow.png" width="2560" height="1520" loading="lazy"
         alt="Three watch screens showing the flow: 1, hold and sing while the watch listens; 2, confirm the match (Dancing Queen by ABBA, 92% match); 3, the song is saved to the Spotify playlist 'Sung It'." />
       <img class="demo-img" src="images/product-render.png" width="2560" height="1600" loading="lazy"
@@ -200,24 +206,27 @@
       <h2>Living PRD (Product Requirements Document)</h2>
       <p class="meta">Updated every week as we test with real users and learn what works.</p>
 
+      <p class="meta"><strong>PRD v2 · 15 Nov 2026.</strong> Updated after Build 2: the laptop version works, the hardware is now the Waveshare watch with built-in mics, and the riskiest assumption has its first evidence.</p>
+
       <h3>1. Target User & The Job to Be Done</h3>
-      <p><strong>Who is this for?</strong> Anyone who has a song stuck in their head and loves to sing it out loud on the go! For the purpose of a user testing group, this is going to be targeted at NYU students, a group of people who might enjoy the novelty of this device, aren’t afraid to sing out loud on the go and would potentially find this device useful for their social lives and their studying.</p>
-      <p><strong>The painful "Before" workflow:</strong> Current ‘what’s that song?!’ offerings such as Shazam, work by matching recorded music and does not work for humming or singing a song. Apps like Google’s hum-to-search and SoundHound can, but they’re phone searches. No one is currently offering a solution in a fun, portable, wearable solution. Nothing turns singing for fun into a way to find and save songs, and karaoke machines and mini mics are bulky and don’t identify or save anything or offer the same level of discreet on-the-go singing!</p>
-      <p><strong>The "After" workflow with this product:</strong> The Karry-No-Key offers a fun and unique way to get the song stuck in your head out of it, recognize what it is and add it to a Spotify playlist, it also offers a fun option of singing your favorite karaoke songs on the go.</p>
+      <p><strong>Who is this for?</strong> Anyone who has a song stuck in their head and loves to sing it out loud on the go! For user testing, I'm starting with NYU students: people who'll enjoy the novelty of the device, aren't afraid to sing out loud, and would use it in their social lives and while studying.</p>
+      <p><strong>The painful "Before" workflow:</strong> "What's that song?!" apps like Shazam work by matching recorded music, so they can't identify a song you hum or sing. Google's hum-to-search and SoundHound can, but they're phone searches: you stop, open an app and hum into your phone. Nothing turns singing for fun into a way to find and save songs, and karaoke machines and mini mics are bulky and don't identify or save anything.</p>
+      <p><strong>The "After" workflow with this product:</strong> You sing a bit of the song stuck in your head into Karry-No-Key. It recognises the song and, with one tap, saves it to your Spotify playlist. Singing for fun becomes the way you find and keep songs.</p>
 
       <h3>2. Scope & Explicit Non-Goals</h3>
       <ul>
-        <li><strong>In Scope (Core Workflow):</strong> Allow users to sing 10–15 seconds of a song into the wired mic, see the identified song on the watch, and add it to a Spotify playlist with one tap</li>
-        <li><strong>Out of Scope #1:</strong> A speaker system from the watch that plays songs out loud</li>
-        <li><strong>Out of Scope #2:</strong> Lyrics from Spotify populating the device screen to allow users to sing along to their song</li>
-        <li><strong>Out of Scope #3:</strong> Lyric-based recognition (turning sung words into text as a backup to melody matching). It would improve accuracy, but it’s too complex for this build, so I’m relying on melody matching alone.</li>
+        <li><strong>In Scope (Core Workflow):</strong> Sing 10–15 seconds of a song into Karry-No-Key, see the identified song on screen, and add it to a Spotify playlist with one tap. Built first as a laptop app (working now), then moved onto the watch.</li>
+        <li><strong>Out of Scope #1:</strong> Playing songs out loud from the watch's speaker.</li>
+        <li><strong>Out of Scope #2:</strong> Lyrics from Spotify on the watch screen so users can sing along.</li>
+        <li><strong>Out of Scope #3:</strong> Lyric-based recognition (turning sung words into text as a backup to melody matching). It would improve accuracy, but it's too complex for this build, so I'm relying on melody matching alone.</li>
+        <li><strong>Future version:</strong> The plug-in mini mic from the concept render. The Waveshare watch has no port for one, so for now you sing into the watch's built-in mics.</li>
       </ul>
 
       <h3>3. How It Works Under the Hood & Riskiest Assumption (Week 2+)</h3>
-      <p><strong>Riskiest Assumption:</strong> The whole build! Parts not arriving in time, the engineer who is supporting me on the build not being able to execute the PRD and specs, the API limitations in linking to Spotify (they have recently tightened up developer mode access).</p>
-      <p>The main risk is that ACRCloud can correctly identify a song from 10–15 seconds of amateur singing recorded on a small wired mic. If it can’t get the right song in its top 3 guesses most of the time, the product doesn’t work.</p>
-      <p><strong>How I’ll test it this week:</strong> record 5 students singing different songs on a laptop mic and run the clips through ACRCloud before any hardware arrives.</p>
-      <p><strong>Who I’ll record and how I’ll reach them:</strong></p>
+      <p><strong>Riskiest Assumption:</strong> That ACRCloud can correctly identify a song from 10–15 seconds of amateur singing recorded on a laptop or watch mic. If it can't get the right song in its top 3 guesses most of the time, the product doesn't work.</p>
+      <p><strong>Evidence so far:</strong> 2 out of 2 correct. I sang <em>Gimme! Gimme! Gimme!</em> (ABBA) and <em>Man I Need</em> (Olivia Dean), and both came back as the top guess with a match score of 0.96. Two catches: both times it returned a remix rather than the original (the app now puts originals first), and one quiet recording failed completely (the app now asks you to sing louder). Two songs, both sung by me, isn't proof yet.</p>
+      <p><strong>How I'll test it this week:</strong> record 5 NYU students each singing a different song into the laptop app, and count how often the right song is in the top 3. PostHog tracks every attempt, so the result comes from real data, not my memory.</p>
+      <p><strong>Who I'll record and how I'll reach them:</strong></p>
       <ul>
         <li>Tommy Ly – NYU Stern – reaching out via text</li>
         <li>Selina de Dios – NYU Stern – reaching out via text</li>
@@ -225,7 +234,9 @@
         <li>Sewon Lee – NYU Stern – reaching out via text</li>
         <li>Amanda Tripodi – NYU Stern – reaching out via text</li>
       </ul>
-      <p><strong>Simple Architecture:</strong> User sings into wired mini mic → Watch sends clip to Karry-No-Key server → ACRCloud matches the melody → Watch shows the top match with a confirm button → Server adds the song to the user’s Spotify playlist</p>
+      <p><strong>Other risks:</strong> Spotify has tightened developer access (Premium needed, and only 5 test users can connect), and my ACRCloud free trial runs out in about 2 weeks.</p>
+      <p><strong>Simple Architecture (now, laptop version):</strong> User sings into the laptop mic → web page sends the clip to the Karry-No-Key server on my laptop → ACRCloud matches the melody → page shows the top 3 matches with a link to each in Spotify</p>
+      <p><strong>Simple Architecture (next, watch version):</strong> User sings into the watch's built-in mics → watch sends the clip over Wi-Fi to the Karry-No-Key server → ACRCloud matches the melody → watch shows the top match with a confirm button → server adds the song to the user's Spotify playlist</p>
 
       <h3>4. Unit Economics & Analytics Snapshot (Updated Weekly)</h3>
       <div class="grid-2">
@@ -279,9 +290,26 @@
       <div class="log-entry">
         <h3>Build 2 · Smallest Local Version & PostHog (Due Nov 16)</h3>
         <ul>
-          <li><strong>What shipped:</strong> [Local working slice, PostHog verified on this page and the local app, PRD v2, and local setup in AGENTS.md]</li>
-          <li><strong>What broke / changed in PRD:</strong> [Fill in]</li>
-          <li><strong>Cost & time this week:</strong> $[0.00] · [0] hours</li>
+          <li><strong>What shipped:</strong> A working laptop version of Karry-No-Key. You open it in Chrome, tap the big pink button and sing for 12 seconds. The page records you through the laptop mic, sends the clip to a small Python server running on my laptop, and the server asks ACRCloud (music + humming recognition) what the song is. The top 3 guesses come back on screen, with an "Open in Spotify" link where ACRCloud has one.
+            <ul>
+              <li><strong>It works:</strong> I tested it by singing two songs, and it got the right song as its top guess both times: <em>Gimme! Gimme! Gimme! (A Man After Midnight)</em> by ABBA and <em>Man I Need</em> by Olivia Dean, each with a match score of 0.96.</li>
+              <li><strong>PostHog is live</strong> on this product page and in the laptop app. The app tracks five events: <code>tapped_sing</code>, <code>song_matched</code> (with the top song and its score), <code>no_match</code>, <code>too_quiet</code> and <code>clicked_spotify</code>. Together these show how often people sing, how often it finds a song, and how often they go on to Spotify.</li>
+              <li><strong>Branding:</strong> the final Karry-No-Key logo, brand pink and Fredoka font are now on both the laptop app and this page.</li>
+              <li><strong>Keys kept safe:</strong> my ACRCloud keys live only in a local <code>.env</code> file, which Git ignores, so they never reach GitHub.</li>
+            </ul>
+          </li>
+          <li><strong>App screenshot:</strong> see the Product Showcase at the top of this page (the app returning ABBA as its top match).</li>
+          <li><strong>Things learned with AI:</strong> How a real app is put together: a web page (what you see), a server (the bit in the middle) and an outside service (ACRCloud) that does the clever part. I learned what an API key is, why it has to stay out of my code and off GitHub, and how to store it safely. I also got comfortable starting and stopping the app in Terminal, which felt very scary at the start of the week!</li>
+          <li><strong>What broke / changed in PRD:</strong>
+            <ul>
+              <li><strong>ACRCloud blocked my first account</strong> with an account error, so I had to set up a new one. It cost me a few days. The backup option I'd looked at (AudD) turned out not to offer singing recognition publicly, so ACRCloud is the only route for now.</li>
+              <li><strong>Silent recordings broke it:</strong> one test came back with ACRCloud "error 2004: can't generate fingerprint" because the recording was too quiet to use. The app now checks the volume first and tells you "I couldn't hear you!" instead of sending silence to ACRCloud.</li>
+              <li><strong>Right song, wrong version:</strong> both tests found the right song but returned a remix, not the original. That matters, because people would want the original saved to their playlist. The app now puts original versions ahead of remixes, covers and karaoke versions whenever ACRCloud returns both.</li>
+              <li><strong>Hardware changed:</strong> I switched to the Waveshare ESP32-S3 2.06" AMOLED watch. It looks like the product render and has a touchscreen, two built-in mics and a speaker, so there's no soldering. The trade-off is that it has no port for a plug-in mic, so the plug-in mini mic moves to a future version and, for now, you sing at your wrist.</li>
+            </ul>
+          </li>
+          <li><strong>Cost & time this week:</strong> $39.35 (Waveshare watch) + $0 ACRCloud (free trial) + $[Claude tokens] · [X] hours</li>
+          <li><strong>Things to note:</strong> Saving the song to a Spotify playlist isn't built yet: right now you get an "Open in Spotify" link. Build 3 adds the one-tap "add to playlist" step and starts moving the app onto the watch. I'll also run the 5 tester recordings to get a real accuracy number for my riskiest assumption, as two songs is a start, not proof.</li>
         </ul>
       </div>
 

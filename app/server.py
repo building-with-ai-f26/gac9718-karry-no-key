@@ -21,6 +21,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -98,18 +99,36 @@ def identify_with_acrcloud(audio_bytes, env):
         return json.loads(resp.read().decode())
 
 
+# Whole words in a title that usually mean "not the original recording".
+# (Whole words only, so a song called "Alive" or "Undercover" isn't caught by mistake.)
+ALTERNATE_VERSION = re.compile(
+    r"\b(remix|mixed|mix|cover|karaoke|instrumental|sped up|slowed|nightcore|tribute|live)\b",
+    re.IGNORECASE,
+)
+
+
+def is_alternate_version(item):
+    """True if the match looks like a remix/cover/karaoke version rather than the original."""
+    return bool(ALTERNATE_VERSION.search(item.get("title", "")))
+
+
 def simplify_result(acr):
     """Turn ACRCloud's big reply into a short list of matches for the page."""
     status = acr.get("status", {})
     code = status.get("code")
     if code == 1001:
         return {"ok": True, "matches": [], "message": "No match found. Try singing the chorus a bit louder."}
+    if code == 2004:
+        return {"ok": True, "matches": [], "message": "ACRCloud couldn't hear enough in that recording. Sing a bit louder and closer to your laptop, then try again."}
     if code != 0:
         return {"ok": False, "matches": [], "message": f"ACRCloud error {code}: {status.get('msg')}"}
 
     metadata = acr.get("metadata", {})
     # "humming" = sung/hummed matches; "music" = matches against recorded songs.
     raw = metadata.get("humming", []) + metadata.get("music", [])
+    # ACRCloud often returns a remix or cover first. Put original versions ahead of them,
+    # keeping ACRCloud's own order otherwise (sorted() is stable).
+    raw = sorted(raw, key=is_alternate_version)
     matches = []
     for item in raw[:3]:  # top 3 guesses
         spotify = item.get("external_metadata", {}).get("spotify", {})
