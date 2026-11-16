@@ -242,16 +242,18 @@
       <div class="grid-2">
         <div class="stat-box">
           <div class="stat-label">Cumulative Build Spend</div>
-          <div class="stat-value">$5.55 to date (projected ~$75–110 total)</div>
+          <div class="stat-value">~$60 to date (projected ~$90–130 total)</div>
+          <div class="stat-note">Waveshare watch $39.35 + Claude ~$21 (estimated at API rates; covered by my subscription) + ACRCloud and PostHog $0 (free tiers). Still to come: more Claude usage, Spotify Premium for API access if needed (~$12/month), and an ACRCloud plan once the free trial ends.</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Est. Cost Per User Run</div>
           <div class="stat-value">~$0.01 per song identified</div>
+          <div class="stat-note">One ACRCloud recognition per sing (estimated; $0 during the free trial). The laptop server and Spotify links cost nothing.</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">User Evidence (Analytics from Build 2)</div>
-          <div class="stat-value">Not yet measured.</div>
-          <div class="stat-note">Will track: match accuracy (% correct first guess / in top 3), seconds to identify, % of matches confirmed, songs saved per session</div>
+          <div class="stat-value">2 of 2 songs correct (my own tests)</div>
+          <div class="stat-note">Right song as the top guess both times, though both were remixes rather than the originals. PostHog now tracks every sing, match, no-match and Spotify click; next up is 5 outside testers for a real accuracy rate (% right song in the top 3).</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Sponsor Call (Week 6)</div>
@@ -308,7 +310,7 @@
               <li><strong>Hardware changed:</strong> I switched to the Waveshare ESP32-S3 2.06" AMOLED watch. It looks like the product render and has a touchscreen, two built-in mics and a speaker, so there's no soldering. The trade-off is that it has no port for a plug-in mic, so the plug-in mini mic moves to a future version and, for now, you sing at your wrist.</li>
             </ul>
           </li>
-          <li><strong>Cost & time this week:</strong> $39.35 (Waveshare watch) + $0 ACRCloud (free trial) + $[Claude tokens] · [X] hours</li>
+          <li><strong>Cost & time this week:</strong> $39.35 (Waveshare watch) + $0 ACRCloud (free trial) + ~$13 in Claude tokens (estimated at API rates; covered by my subscription) · [X] hours</li>
           <li><strong>Things to note:</strong> Saving the song to a Spotify playlist isn't built yet: right now you get an "Open in Spotify" link. Build 3 adds the one-tap "add to playlist" step and starts moving the app onto the watch. I'll also run the 5 tester recordings to get a real accuracy number for my riskiest assumption, as two songs is a start, not proof.</li>
         </ul>
       </div>
