@@ -22,7 +22,9 @@ import hmac
 import json
 import os
 import re
+import socket
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 import uuid
@@ -171,8 +173,23 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def send_watch_text(self, result):
+        """Plain-text reply for the watch, which can't easily read JSON.
+        Line 1: match / nomatch / error. Lines 2-4: title, artist, message (plain ASCII)."""
+        top = result["matches"][0] if result.get("matches") else {}
+        status = "match" if top else ("nomatch" if result.get("ok") else "error")
+        lines = [status, top.get("title", ""), top.get("artist", ""), result.get("message", "")]
+        text = "\n".join(to_plain_ascii(line) for line in lines)
+        data = text.encode("ascii")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=ascii")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_POST(self):
-        if self.path != "/identify":
+        # /identify is used by the laptop web page; /identify-watch by the Karry-No-Key watch.
+        if self.path not in ("/identify", "/identify-watch"):
             self.send_error(404)
             return
 
@@ -194,9 +211,32 @@ class Handler(BaseHTTPRequestHandler):
         except urllib.error.URLError as e:
             result = {"ok": False, "matches": [], "message": f"Could not reach ACRCloud: {e}"}
         print("ACRCloud result:", json.dumps(result))
-        self.send_json(200, result)
+        if self.path == "/identify-watch":
+            self.send_watch_text(result)
+        else:
+            self.send_json(200, result)
+
+
+def to_plain_ascii(text):
+    """Turn 'Beyoncé' into 'Beyonce' etc., because the watch's basic font only has plain letters."""
+    text = unicodedata.normalize("NFKD", str(text)).encode("ascii", "ignore").decode("ascii")
+    return text.replace("\n", " ").strip()
+
+
+def laptop_ip_address():
+    """This laptop's address on the Wi-Fi, which the watch needs in order to reach the server."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))  # doesn't send anything; just picks the Wi-Fi connection
+        return s.getsockname()[0]
+    except OSError:
+        return "unknown (are you connected to Wi-Fi?)"
+    finally:
+        s.close()
 
 
 if __name__ == "__main__":
     print(f"Karry-No-Key is running. Open http://localhost:{PORT} in Chrome. Press Ctrl+C to stop.")
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    print(f"For the watch: this laptop's address is {laptop_ip_address()}")
+    # "0.0.0.0" lets the watch reach the server from the same Wi-Fi, not just Chrome on this laptop.
+    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

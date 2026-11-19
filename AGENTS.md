@@ -13,6 +13,7 @@
 - **Run locally:** `python3 app/server.py`, then open http://localhost:8000 in Chrome and allow the mic. Stop with Control + C.
 - **Run deterministic tests:** Not yet. Manual check: sing a known chorus and confirm the right song is in the top 3.
 - **Run model evals:** Not yet (Build 4).
+- **Watch (Waveshare ESP32-S3 2.06" AMOLED):** code in `watch/KarryNoKey_Watch/`. Copy `secrets.example.h` to `secrets.h` (git-ignored) and fill in Wi-Fi name, password and the laptop's address (printed when `app/server.py` starts). In Arduino IDE: esp32 by Espressif board package, board **ESP32S3 Dev Module**, USB CDC On Boot Enabled, Flash 16MB, Partition "16M Flash (3MB APP/9.9MB FATFS)", PSRAM OPI PSRAM; library "GFX Library for Arduino". Laptop app must be running on the same 2.4 GHz Wi-Fi with no VPN. Press BOOT on the watch, sing 12 seconds; the watch posts the WAV to `/identify-watch` and shows the top match. Mics are on the ES7210 chip (I2C 0x40).
 
 ## 3. Non-Negotiable Engineering Rules
 1. **Plan before coding:** Before touching multiple files, propose a brief plan and wait for approval.
