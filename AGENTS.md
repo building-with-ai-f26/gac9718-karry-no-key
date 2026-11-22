@@ -15,6 +15,24 @@
 - **Run model evals:** Not yet (Build 4).
 - **Watch (Waveshare ESP32-S3 2.06" AMOLED):** code in `watch/KarryNoKey_Watch/`. Copy `secrets.example.h` to `secrets.h` (git-ignored) and fill in Wi-Fi name, password and the laptop's address (printed when `app/server.py` starts). In Arduino IDE: esp32 by Espressif board package, board **ESP32S3 Dev Module**, USB CDC On Boot Enabled, Flash 16MB, Partition "16M Flash (3MB APP/9.9MB FATFS)", PSRAM OPI PSRAM; library "GFX Library for Arduino". Laptop app must be running on the same 2.4 GHz Wi-Fi with no VPN. Press BOOT on the watch, sing 12 seconds; the watch posts the WAV to `/identify-watch` and shows the top match. Mics are on the ES7210 chip (I2C 0x40).
 
+## 2b. Deployment (Render)
+The app is deployed as a Render **Web Service** from this GitHub repo. Live URL: `[add your onrender.com URL]`
+
+**One-time setup**
+1. Sign in at render.com with GitHub. New → **Web Service** → **Public Git Repository** → paste `https://github.com/building-with-ai-f26/gac9718-karry-no-key` → Connect.
+2. Settings: Name `karry-no-key` · Language **Python 3** · Branch `main` · Root Directory blank · Build Command `pip install -r requirements.txt` · Start Command `python3 app/server.py` · Instance Type **Free**.
+3. Environment Variables (never commit these): `ACR_HOST`, `ACR_ACCESS_KEY`, `ACR_ACCESS_SECRET`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`. Easiest: "Add from .env" and paste the contents of your local `.env` (run the app locally and connect Spotify first so `.env` has `SPOTIFY_REFRESH_TOKEN`).
+4. Deploy. Render sets `PORT` and `RENDER` automatically; `app/server.py` reads both.
+
+**Updating:** push to `main`; Render redeploys automatically (Manual Deploy → Deploy latest commit if not).
+
+**How it works in the cloud**
+- No database: the only stored data is the Spotify refresh token (an environment variable) and the "Sung It" playlist on Spotify itself. Nothing is written to the server's disk, so restarts lose nothing.
+- Visitors don't sign in. "Add to playlist" calls the server (`POST /save`), which saves to the owner's shared **Sung It** playlist with the server-side Spotify secret; the browser never talks to Spotify with a key. The server only saves songs it has just identified (one-time save tickets, 15 minutes).
+- Abuse limits: 30 sings per visitor per hour (each sing uses one ACRCloud recognition).
+- Free Render services sleep after ~15 minutes idle; the first visit after that takes up to a minute to wake.
+- Rollback: Render → the service → Events → pick the previous deploy → **Rollback**.
+
 ## 3. Non-Negotiable Engineering Rules
 1. **Plan before coding:** Before touching multiple files, propose a brief plan and wait for approval.
 2. **Small batches:** Make small, focused changes that can be reviewed and explained by a human in a single Pull Request.

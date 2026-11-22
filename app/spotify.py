@@ -35,14 +35,26 @@ class SpotifyError(Exception):
     pass
 
 
+_token_cache = {}   # kept in memory, so the cloud version works without a file
+
+
 def _read_token():
-    if os.path.exists(TOKEN_FILE):
-        with open(TOKEN_FILE) as f:
-            return json.load(f)
-    return {}
+    """Your Spotify login. On your laptop it's saved in .spotify_token.json; in the cloud
+    (where files get wiped on restart) the refresh token comes from SPOTIFY_REFRESH_TOKEN."""
+    if not _token_cache:
+        if os.path.exists(TOKEN_FILE):
+            with open(TOKEN_FILE) as f:
+                _token_cache.update(json.load(f))
+        elif os.environ.get("SPOTIFY_REFRESH_TOKEN"):
+            _token_cache["refresh_token"] = os.environ["SPOTIFY_REFRESH_TOKEN"]
+    return dict(_token_cache)
 
 
 def _write_token(data):
+    _token_cache.clear()
+    _token_cache.update(data)
+    if os.environ.get("RENDER"):
+        return  # in the cloud, memory is enough (and files would be wiped anyway)
     with open(TOKEN_FILE, "w") as f:
         json.dump(data, f)
     try:
@@ -200,6 +212,12 @@ def _playlist_id(env):
     token["playlist_id"] = created["id"]
     _write_token(token)
     return created["id"]
+
+
+def playlist_url():
+    """Link to the "Sung It" playlist, if we know it."""
+    pid = _read_token().get("playlist_id")
+    return f"https://open.spotify.com/playlist/{pid}" if pid else None
 
 
 def save_song(env, title, artist, track_id=None):

@@ -30,6 +30,12 @@
     .title { font-weight: 700; font-size: 18px; }
     .meta { opacity: .7; font-size: 14px; margin-top: 2px; }
     .card a { color: var(--pink-dark); font-weight: 600; font-size: 14px; }
+    .card .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; }
+    .card button.save { border: none; border-radius: 999px; background: var(--pink); color: #fff;
+                        font-family: inherit; font-weight: 700; font-size: 15px; padding: 10px 16px; min-height: 44px; cursor: pointer; }
+    .card button.save:disabled { opacity: .6; cursor: default; }
+    .card button.save:focus-visible { outline: 3px solid var(--pink-dark); outline-offset: 2px; }
+    .saved-note { margin: 8px 0 0; font-weight: 600; color: var(--pink-dark); }
   </style>
   <!-- PostHog analytics (project key is public by design; secrets stay in .env) -->
   <script>
@@ -67,16 +73,20 @@
   btn.addEventListener("click", async () => {
     track("tapped_sing");
     resultsEl.innerHTML = "";
+    // Create the audio engine straight away, while the tap still counts: phones (especially
+    // iPhones) only allow sound recording to start directly from a tap.
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (e) {
-      statusEl.textContent = "Microphone blocked. Allow mic access in Chrome and try again.";
+      ctx.close();
+      statusEl.textContent = "Microphone blocked. Allow microphone access for this page in your browser settings and try again.";
       return;
     }
+    if (ctx.state === "suspended") await ctx.resume();
 
     // Capture raw audio samples from the mic.
-    const ctx = new AudioContext();
     const source = ctx.createMediaStreamSource(stream);
     const processor = ctx.createScriptProcessor(4096, 1, 1);
     const chunks = [];
@@ -104,7 +114,7 @@
       btn.classList.remove("recording");
       btn.disabled = false;
       btn.textContent = "Sing again";
-      statusEl.textContent = "I couldn't hear you! Sing a bit louder and closer to your laptop, and check no other app is using the mic.";
+      statusEl.textContent = "I couldn't hear you! Sing a bit louder and closer to the microphone, and check no other app is using it.";
       track("too_quiet", { loudness: loudness(samples) });
       return;
     }
@@ -118,7 +128,7 @@
       const data = await resp.json();
       showResults(data);
     } catch (e) {
-      statusEl.textContent = "Couldn't reach the Karry-No-Key server. Is it still running?";
+      statusEl.textContent = "Couldn't reach Karry-No-Key. Check your internet connection and try again.";
     }
     btn.disabled = false;
     btn.textContent = "Sing again";
@@ -147,15 +157,56 @@
       meta.className = "meta";
       meta.textContent = m.artist + (m.score != null ? " · match score " + m.score : "");
       card.append(title, meta);
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      if (m.save_ticket) {
+        const save = document.createElement("button");
+        save.type = "button";
+        save.className = "save";
+        save.textContent = "Add to playlist";
+        save.addEventListener("click", () => saveSong(m, i, save, card));
+        actions.append(save);
+      }
       if (m.spotify_url) {
         const a = document.createElement("a");
         a.href = m.spotify_url; a.target = "_blank"; a.rel = "noopener";
         a.textContent = "Open in Spotify →";
         a.addEventListener("click", () => track("clicked_spotify", { title: m.title, artist: m.artist, rank: i + 1 }));
-        card.append(a);
+        actions.append(a);
       }
+      card.append(actions);
       resultsEl.append(card);
     });
+  }
+
+  // "Add to playlist": the server saves it to the shared Sung It playlist on Spotify.
+  async function saveSong(m, rank, button, card) {
+    document.querySelectorAll("button.save").forEach((b) => (b.disabled = true));
+    button.textContent = "Saving…";
+    let data = { ok: false, message: "Couldn't reach Karry-No-Key. Try again." };
+    try {
+      const resp = await fetch("/save", { method: "POST", headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ ticket: m.save_ticket }) });
+      data = await resp.json();
+    } catch (e) {}
+    const note = document.createElement("p");
+    note.className = "saved-note";
+    note.textContent = data.message;
+    if (data.ok) {
+      button.textContent = "Saved ✓";
+      track("saved_to_spotify", { title: m.title, artist: m.artist, rank: rank + 1 });
+      if (data.playlist_url) {
+        const link = document.createElement("a");
+        link.href = data.playlist_url; link.target = "_blank"; link.rel = "noopener";
+        link.textContent = " See the playlist →";
+        note.append(link);
+      }
+    } else {
+      button.textContent = "Add to playlist";
+      document.querySelectorAll("button.save").forEach((b) => (b.disabled = false));
+      track("save_failed", { title: m.title, message: data.message || "" });
+    }
+    card.append(note);
   }
 
   // Average volume of the recording (0 = silence, 1 = as loud as possible).

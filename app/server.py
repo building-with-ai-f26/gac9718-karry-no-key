@@ -40,7 +40,9 @@ import spotify
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATIC_DIR = os.path.join(ROOT, "app", "static")
-PORT = 8000
+# Render (the cloud host) tells the app which port to use; on your laptop it's 8000.
+PORT = int(os.environ.get("PORT", 8000))
+ON_CLOUD = bool(os.environ.get("RENDER"))   # Render sets this automatically
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB is plenty for ~15 seconds of audio
 
 # PostHog project key: public by design (the same one is in the web pages), so it's fine in code.
@@ -80,11 +82,57 @@ def load_env():
                 if line and not line.startswith("#") and "=" in line:
                     key, value = line.split("=", 1)
                     env[key.strip()] = value.strip().strip('"').strip("'")
-    # Real environment variables win over the file.
-    for key in ("ACR_HOST", "ACR_ACCESS_KEY", "ACR_ACCESS_SECRET"):
+    # Real environment variables win over the file. On Render, the keys live in the service's
+    # "Environment" settings (there is no .env file in the cloud).
+    for key in ("ACR_HOST", "ACR_ACCESS_KEY", "ACR_ACCESS_SECRET",
+                "SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REFRESH_TOKEN"):
         if os.environ.get(key):
             env[key] = os.environ[key]
     return env
+
+
+# ---------- Protecting the public app ----------
+# Anyone with the link can use the app, so limit how often one person can sing (each sing uses
+# one ACRCloud recognition from the trial).
+SINGS_PER_HOUR = 30
+_recent_sings = {}   # visitor address -> times they sang in the last hour
+_rate_lock = threading.Lock()
+
+
+def allowed_to_sing(visitor):
+    now = time.time()
+    with _rate_lock:
+        times = [t for t in _recent_sings.get(visitor, []) if now - t < 3600]
+        if len(times) >= SINGS_PER_HOUR:
+            _recent_sings[visitor] = times
+            return False
+        times.append(now)
+        _recent_sings[visitor] = times
+        return True
+
+
+# The web page can only save a song the server has just identified for it: each match gets a
+# one-time "save ticket", so nobody can add random songs to the playlist.
+_save_tickets = {}   # ticket -> (time issued, song)
+SAVE_TICKET_MINUTES = 15
+
+
+def issue_save_ticket(song):
+    ticket = uuid.uuid4().hex
+    now = time.time()
+    with _rate_lock:
+        for old in [t for t, (issued, _) in _save_tickets.items() if now - issued > SAVE_TICKET_MINUTES * 60]:
+            del _save_tickets[old]
+        _save_tickets[ticket] = (now, song)
+    return ticket
+
+
+def use_save_ticket(ticket):
+    with _rate_lock:
+        issued, song = _save_tickets.pop(ticket, (0, None))
+    if song and time.time() - issued <= SAVE_TICKET_MINUTES * 60:
+        return song
+    return None
 
 
 def identify_with_acrcloud(audio_bytes, env):
@@ -292,8 +340,37 @@ class Handler(BaseHTTPRequestHandler):
             message = str(e) if isinstance(e, spotify.SpotifyError) else "Couldn't reach Spotify."
             self.send_text("error\n" + message)
 
+    def visitor(self):
+        # On Render, the visitor's real address arrives in this header.
+        forwarded = self.headers.get("X-Forwarded-For", "")
+        return forwarded.split(",")[0].strip() or self.client_address[0]
+
+    def save_from_web(self):
+        """The web page's "Add to playlist" button. Saves only a song this server just identified."""
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            ticket = json.loads(self.rfile.read(min(length, 2000)) or b"{}").get("ticket", "")
+        except (ValueError, json.JSONDecodeError):
+            ticket = ""
+        song = use_save_ticket(ticket)
+        if not song:
+            self.send_json(400, {"ok": False, "message": "That match has expired. Sing again to save it."})
+            return
+        try:
+            spotify.save_song(load_env(), song["title"], song["artist"], song.get("spotify_id"))
+            print(f"Saved to Spotify (web): {song['title']} by {song['artist']}")
+            self.send_json(200, {"ok": True, "message": f"Saved {song['title']} to the Sung It playlist!",
+                                 "playlist_url": spotify.playlist_url()})
+        except (spotify.SpotifyError, urllib.error.URLError, KeyError) as e:
+            print("Spotify save failed (web):", e)
+            message = str(e) if isinstance(e, spotify.SpotifyError) else "Couldn't reach Spotify."
+            self.send_json(502, {"ok": False, "message": message})
+
     def do_POST(self):
         global last_watch_match
+        if self.path == "/save":
+            self.save_from_web()
+            return
         if self.path == "/save-watch":
             self.save_watch_match()
             return
@@ -317,6 +394,11 @@ class Handler(BaseHTTPRequestHandler):
                                  "message": "Missing in .env: " + ", ".join(missing)})
             return
 
+        if not allowed_to_sing(self.visitor()):
+            self.send_json(429, {"ok": False, "matches": [],
+                                 "message": "That's a lot of singing! Take a break and try again in a little while."})
+            return
+
         length = int(self.headers.get("Content-Length", 0))
         if length <= 0 or length > MAX_UPLOAD_BYTES:
             self.send_json(400, {"ok": False, "matches": [], "message": "Recording is empty or too big."})
@@ -329,6 +411,8 @@ class Handler(BaseHTTPRequestHandler):
             result = {"ok": False, "matches": [], "message": f"Could not reach ACRCloud: {e}"}
         print("ACRCloud result:", json.dumps(result))
         prefer_original_version(result)
+        for m in result.get("matches", []):
+            m["save_ticket"] = issue_save_ticket({k: m.get(k) for k in ("title", "artist", "spotify_id")})
         if self.path == "/identify-watch":
             top = result["matches"][0] if result.get("matches") else {}
             last_watch_match = top
@@ -390,9 +474,14 @@ def laptop_ip_address():
 
 
 if __name__ == "__main__":
-    print(f"Karry-No-Key is running. Open http://localhost:{PORT} in Chrome. Press Ctrl+C to stop.")
-    print(f"For the watch: this laptop's address is {laptop_ip_address()}")
-    if not spotify.is_connected():
-        print(f"Spotify not connected yet: open http://127.0.0.1:{PORT}/spotify/login on this laptop.")
+    if ON_CLOUD:
+        print(f"Karry-No-Key is running on Render (port {PORT}).")
+        if not spotify.is_connected():
+            print("Spotify not connected: add SPOTIFY_REFRESH_TOKEN in Render's Environment settings.")
+    else:
+        print(f"Karry-No-Key is running. Open http://localhost:{PORT} in Chrome. Press Ctrl+C to stop.")
+        print(f"For the watch: this laptop's address is {laptop_ip_address()}")
+        if not spotify.is_connected():
+            print(f"Spotify not connected yet: open http://127.0.0.1:{PORT}/spotify/login on this laptop.")
     # "0.0.0.0" lets the watch reach the server from the same Wi-Fi, not just Chrome on this laptop.
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

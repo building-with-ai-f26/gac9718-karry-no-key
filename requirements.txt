@@ -1,0 +1,2 @@
+# Karry-No-Key uses only Python's built-in libraries, so there is nothing to install.
+# This file exists because Render's Python setup expects one.
