@@ -39,7 +39,11 @@ const Button REJECT_BUTTON = { 30, 415, 350, 60 };
 
 // ---------- Screen ----------
 Arduino_DataBus *bus = new Arduino_ESP32QSPI(LCD_CS, LCD_SCLK, LCD_SDIO0, LCD_SDIO1, LCD_SDIO2, LCD_SDIO3);
-Arduino_GFX *gfx = new Arduino_CO5300(bus, LCD_RESET, 0, LCD_WIDTH, LCD_HEIGHT, 22, 0, 0, 0);
+Arduino_GFX *screen = new Arduino_CO5300(bus, LCD_RESET, 0, LCD_WIDTH, LCD_HEIGHT, 22, 0, 0, 0);
+// This screen only accepts drawing in whole pairs of pixels, so smooth fonts and rounded corners
+// (drawn one pixel at a time) don't show if sent directly. Instead we draw each screen into the
+// watch's memory (a "canvas"), then send the finished picture in one go with gfx->flush().
+Arduino_GFX *gfx = new Arduino_Canvas(LCD_WIDTH, LCD_HEIGHT, screen);
 
 // ---------- Microphone ----------
 I2SClass i2s;
@@ -93,6 +97,7 @@ void showScreen(const String &heading, const String &body) {
   gfx->fillScreen(BRAND_PINK);
   int y = centredWrapped(heading, 190, &FredokaBold40);
   centredWrapped(body, y + 12, &FredokaMedium20);
+  gfx->flush();
 }
 
 // ---------- Microphone chip ----------
@@ -196,8 +201,28 @@ const uint8_t TOUCH_ADDRESS = 0x38;
 bool touchReady = false;
 
 bool startTouch() {
-  Wire.beginTransmission(TOUCH_ADDRESS);
-  touchReady = (Wire.endTransmission() == 0);
+  // Reset the touch chip, the same way Waveshare's driver does.
+  pinMode(TP_RESET, OUTPUT);
+  digitalWrite(TP_RESET, HIGH);
+  delay(1);
+  digitalWrite(TP_RESET, LOW);
+  delay(20);
+  digitalWrite(TP_RESET, HIGH);
+  delay(50);
+  // The touch chip can take a moment to wake up, so try for up to 3 seconds.
+  for (int attempt = 0; attempt < 15 && !touchReady; attempt++) {
+    Wire.beginTransmission(TOUCH_ADDRESS);
+    touchReady = (Wire.endTransmission() == 0);
+    if (!touchReady) delay(200);
+  }
+  if (touchReady) {
+    // Put it in "monitor" mode: it listens for touches (Waveshare's driver does the same).
+    Wire.beginTransmission(TOUCH_ADDRESS);
+    Wire.write(0xA5);
+    Wire.write(0x01);
+    Wire.endTransmission();
+    delay(20);
+  }
   Serial.println(touchReady ? "Touchscreen started" : "Touchscreen not found (BOOT button still works)");
   return touchReady;
 }
@@ -255,9 +280,11 @@ int waitForChoice(const Button *buttons, int count, unsigned long timeoutMs) {
     if (digitalRead(BOOT_BUTTON) == LOW) { waitForRelease(); return 0; }
     int x, y;
     if (readTouch(x, y)) {
+      Serial.printf("Touch at x=%d, y=%d\n", x, y);   // helps check taps line up with the buttons
       for (int i = 0; i < count; i++) {
         if (inside(buttons[i], x, y)) {
           gfx->fillRoundRect(buttons[i].x, buttons[i].y, buttons[i].w, buttons[i].h, buttons[i].h / 2, 0xF5B6);  // flash light pink
+          gfx->flush();
           waitForRelease();
           return i;
         }
@@ -306,6 +333,7 @@ void showReadyScreen() {
   centredLine("Karry-No-Key", 150, &FredokaBold40);
   centredWrapped("Sing 12 seconds of the song stuck in your head", 205, &FredokaMedium20);
   drawButton(SING_BUTTON, "Tap to sing", true);
+  gfx->flush();
 }
 
 void singAndIdentify() {
@@ -329,6 +357,7 @@ void singAndIdentify() {
     gfx->fillScreen(BRAND_PINK);
     centredLine("Sing!", 150, &FredokaBold40);
     centredLine(String(s), 330, &FredokaDigits110);
+    gfx->flush();
     uint32_t target = got + bytesPerSecond;
     while (got < target) {
       size_t n = i2s.readBytes((char *)stereo + got, target - got);
@@ -397,6 +426,7 @@ void singAndIdentify() {
     centredWrapped(lines[2], y + 4, &FredokaMedium20);
     drawButton(ADD_BUTTON, "Add to playlist", true);
     drawButton(REJECT_BUTTON, "Not my song", false);
+    gfx->flush();
     const Button choices[2] = { ADD_BUTTON, REJECT_BUTTON };
     int choice = waitForChoice(choices, 2, 30000);
     if (choice == 0) {
@@ -416,7 +446,7 @@ void singAndIdentify() {
 void setup() {
   Serial.begin(115200);
   pinMode(BOOT_BUTTON, INPUT_PULLUP);
-  gfx->begin();
+  if (!gfx->begin()) Serial.println("Screen memory couldn't be set up (check PSRAM: OPI PSRAM)");
   gfx->setTextWrap(false);   // we break lines ourselves, neatly between words
   showScreen("Karry-No-Key", "Starting up...");
 
