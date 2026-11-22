@@ -13,6 +13,12 @@
 #include "ESP_I2S.h"
 #include "esp_check.h"
 #include "Arduino_GFX_Library.h"
+// Karry-No-Key's brand font (Fredoka), converted for the watch at the exact sizes used,
+// so text stays crisp instead of being the tiny built-in font blown up.
+#include "FredokaBold40.h"      // headings
+#include "FredokaSemi28.h"      // buttons and song titles
+#include "FredokaMedium20.h"    // smaller text
+#include "FredokaDigits110.h"   // the big countdown numbers (digits only)
 #include "pin_config.h"
 #include "secrets.h"
 
@@ -38,43 +44,55 @@ Arduino_GFX *gfx = new Arduino_CO5300(bus, LCD_RESET, 0, LCD_WIDTH, LCD_HEIGHT, 
 // ---------- Microphone ----------
 I2SClass i2s;
 
-// Draw one line of text centred across the screen. Built-in font: 6 x 8 pixels per character.
-void centredLine(const String &text, int y, int size, uint16_t colour = TEXT_WHITE) {
-  gfx->setTextSize(size);
+// Width in pixels of some text in a given font.
+int textWidth(const GFXfont *font, const String &text) {
+  int w = 0;
+  for (unsigned int i = 0; i < text.length(); i++) {
+    uint8_t c = text[i];
+    if (c >= font->first && c <= font->last) w += font->glyph[c - font->first].xAdvance;
+  }
+  return w;
+}
+
+// Draw one line of text centred across the screen. y is the baseline (the line letters sit on).
+void centredLine(const String &text, int y, const GFXfont *font, uint16_t colour = TEXT_WHITE) {
+  gfx->setFont(font);
+  gfx->setTextSize(1);
   gfx->setTextColor(colour);
-  int x = (gfx->width() - (int)text.length() * 6 * size) / 2;
+  int x = (gfx->width() - textWidth(font, text)) / 2;
   gfx->setCursor(x < 0 ? 0 : x, y);
   gfx->print(text);
 }
 
-// Draw text centred, breaking it onto several lines so it fits the screen. Returns the next free y.
-int centredWrapped(const String &text, int y, int size, uint16_t colour = TEXT_WHITE) {
-  int maxChars = (gfx->width() - 30) / (6 * size);
+// Draw text centred, breaking it onto several lines so it fits. Returns the next free baseline.
+int centredWrapped(const String &text, int y, const GFXfont *font, uint16_t colour = TEXT_WHITE) {
+  const int maxWidth = gfx->width() - 40;
   String remaining = text;
   remaining.trim();
   while (remaining.length() > 0) {
-    String line;
-    if ((int)remaining.length() <= maxChars) {
-      line = remaining;
-      remaining = "";
-    } else {
-      int cut = remaining.lastIndexOf(' ', maxChars);
-      if (cut <= 0) cut = maxChars;
-      line = remaining.substring(0, cut);
-      remaining = remaining.substring(cut);
-      remaining.trim();
+    // Take as many whole words as fit on this line.
+    int cut = remaining.length();
+    while (textWidth(font, remaining.substring(0, cut)) > maxWidth) {
+      int space = remaining.lastIndexOf(' ', cut - 1);
+      if (space <= 0) {                       // one very long word: cut it where it fits
+        while (cut > 1 && textWidth(font, remaining.substring(0, cut)) > maxWidth) cut--;
+        break;
+      }
+      cut = space;
     }
-    centredLine(line, y, size, colour);
-    y += 8 * size + 8;
+    centredLine(remaining.substring(0, cut), y, font, colour);
+    remaining = remaining.substring(cut);
+    remaining.trim();
+    y += font->yAdvance;
   }
   return y;
 }
 
-// A full screen: big heading, then smaller text underneath.
+// A full screen: heading, then smaller text underneath.
 void showScreen(const String &heading, const String &body) {
   gfx->fillScreen(BRAND_PINK);
-  int y = centredWrapped(heading, 150, 4);
-  centredWrapped(body, y + 30, 2);
+  int y = centredWrapped(heading, 190, &FredokaBold40);
+  centredWrapped(body, y + 12, &FredokaMedium20);
 }
 
 // ---------- Microphone chip ----------
@@ -202,18 +220,18 @@ bool readTouch(int &x, int &y) {
 // ---------- Buttons on screen ----------
 
 // filled = white button with pink writing; otherwise a white outline with white writing.
-void drawButton(const Button &b, const String &label, int textSize, bool filled) {
-  if (filled) gfx->fillRoundRect(b.x, b.y, b.w, b.h, 24, TEXT_WHITE);
+void drawButton(const Button &b, const String &label, bool filled) {
+  const GFXfont *font = &FredokaSemi28;
+  if (filled) gfx->fillRoundRect(b.x, b.y, b.w, b.h, b.h / 2, TEXT_WHITE);
   else {
-    gfx->drawRoundRect(b.x, b.y, b.w, b.h, 24, TEXT_WHITE);
-    gfx->drawRoundRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2, 23, TEXT_WHITE);
-    gfx->drawRoundRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4, 22, TEXT_WHITE);
+    for (int i = 0; i < 3; i++)
+      gfx->drawRoundRect(b.x + i, b.y + i, b.w - 2 * i, b.h - 2 * i, b.h / 2 - i, TEXT_WHITE);
   }
-  gfx->setTextSize(textSize);
+  int capHeight = font->glyph['H' - font->first].height;   // height of a capital letter
+  gfx->setFont(font);
+  gfx->setTextSize(1);
   gfx->setTextColor(filled ? BRAND_PINK : TEXT_WHITE);
-  int tx = b.x + (b.w - (int)label.length() * 6 * textSize) / 2;
-  int ty = b.y + (b.h - 8 * textSize) / 2;
-  gfx->setCursor(tx, ty);
+  gfx->setCursor(b.x + (b.w - textWidth(font, label)) / 2, b.y + (b.h + capHeight) / 2);
   gfx->print(label);
 }
 
@@ -239,7 +257,7 @@ int waitForChoice(const Button *buttons, int count, unsigned long timeoutMs) {
     if (readTouch(x, y)) {
       for (int i = 0; i < count; i++) {
         if (inside(buttons[i], x, y)) {
-          gfx->fillRoundRect(buttons[i].x, buttons[i].y, buttons[i].w, buttons[i].h, 24, 0xF5B6);  // flash light pink
+          gfx->fillRoundRect(buttons[i].x, buttons[i].y, buttons[i].w, buttons[i].h, buttons[i].h / 2, 0xF5B6);  // flash light pink
           waitForRelease();
           return i;
         }
@@ -285,9 +303,9 @@ void saveToSpotify(const String &title) {
 // ---------- The main flow ----------
 void showReadyScreen() {
   gfx->fillScreen(BRAND_PINK);
-  centredLine("Karry-No-Key", 120, 5);
-  centredWrapped("Sing 12 seconds of the song stuck in your head", 200, 2);
-  drawButton(SING_BUTTON, "Tap to sing", 4, true);
+  centredLine("Karry-No-Key", 150, &FredokaBold40);
+  centredWrapped("Sing 12 seconds of the song stuck in your head", 205, &FredokaMedium20);
+  drawButton(SING_BUTTON, "Tap to sing", true);
 }
 
 void singAndIdentify() {
@@ -309,8 +327,8 @@ void singAndIdentify() {
   uint32_t got = 0;
   for (int s = RECORD_SECONDS; s > 0; s--) {
     gfx->fillScreen(BRAND_PINK);
-    centredLine("Sing!", 160, 6);
-    centredLine(String(s), 260, 8);
+    centredLine("Sing!", 150, &FredokaBold40);
+    centredLine(String(s), 330, &FredokaDigits110);
     uint32_t target = got + bytesPerSecond;
     while (got < target) {
       size_t n = i2s.readBytes((char *)stereo + got, target - got);
@@ -371,12 +389,14 @@ void singAndIdentify() {
 
   if (lines[0] == "match") {
     gfx->fillScreen(BRAND_PINK);
-    centredLine("Is this", 50, 3);
-    int titleSize = lines[1].length() > 28 ? 3 : 4;   // smaller text for long song titles
-    int y = centredWrapped(lines[1] + "?", 100, titleSize);
-    centredWrapped(lines[2], y + 10, 2);
-    drawButton(ADD_BUTTON, "Add to playlist", 3, true);
-    drawButton(REJECT_BUTTON, "Not my song", 3, false);
+    centredLine("Is this", 85, &FredokaSemi28);
+    String question = lines[1] + "?";
+    // Big title if it fits on two lines, otherwise a smaller size so it stays above the buttons.
+    const GFXfont *titleFont = textWidth(&FredokaBold40, question) <= 2 * (LCD_WIDTH - 40) ? &FredokaBold40 : &FredokaSemi28;
+    int y = centredWrapped(question, 145, titleFont);
+    centredWrapped(lines[2], y + 4, &FredokaMedium20);
+    drawButton(ADD_BUTTON, "Add to playlist", true);
+    drawButton(REJECT_BUTTON, "Not my song", false);
     const Button choices[2] = { ADD_BUTTON, REJECT_BUTTON };
     int choice = waitForChoice(choices, 2, 30000);
     if (choice == 0) {
@@ -397,6 +417,7 @@ void setup() {
   Serial.begin(115200);
   pinMode(BOOT_BUTTON, INPUT_PULLUP);
   gfx->begin();
+  gfx->setTextWrap(false);   // we break lines ourselves, neatly between words
   showScreen("Karry-No-Key", "Starting up...");
 
   // Microphone
