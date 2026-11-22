@@ -11,7 +11,11 @@ How to run (from the project folder):
   python3 app/server.py
 Then open http://localhost:8000 in Chrome.
 
-Your ACRCloud keys live in a file called .env in the project folder.
+For the watch it also: receives recordings from the watch (/identify-watch), saves the
+matched song to your Spotify "Sung It" playlist (/save-watch), and sends watch events to PostHog.
+Connect Spotify once by opening http://127.0.0.1:8000/spotify/login on this laptop.
+
+Your ACRCloud and Spotify keys live in a file called .env in the project folder.
 That file is listed in .gitignore, so it is NEVER pushed to GitHub.
 Uses only Python's built-in libraries, so there is nothing to install.
 """
@@ -23,17 +27,46 @@ import json
 import os
 import re
 import socket
+import threading
 import time
 import unicodedata
 import urllib.error
 import urllib.request
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
+
+import spotify
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATIC_DIR = os.path.join(ROOT, "app", "static")
 PORT = 8000
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB is plenty for ~15 seconds of audio
+
+# PostHog project key: public by design (the same one is in the web pages), so it's fine in code.
+POSTHOG_KEY = "phc_CHj8esjkwBFXBDRnBq6GFavcuJAyKmhJJ9stAEoG4KNJ"
+POSTHOG_URL = "https://us.i.posthog.com/i/v0/e/"
+
+# The watch's most recent match, so pressing BOOT can save it to Spotify.
+last_watch_match = {}
+
+
+def track(event, properties=None):
+    """Send an event to PostHog in the background, so a slow network never holds up the watch."""
+    def send():
+        body = json.dumps({
+            "api_key": POSTHOG_KEY,
+            "event": event,
+            "distinct_id": "karry-no-key-watch",
+            "properties": dict(properties or {}, source="watch"),
+        }).encode()
+        try:
+            req = urllib.request.Request(POSTHOG_URL, data=body,
+                                         headers={"Content-Type": "application/json"}, method="POST")
+            urllib.request.urlopen(req, timeout=10).read()
+        except Exception as e:  # analytics must never break the app
+            print("PostHog event not sent:", e)
+    threading.Thread(target=send, daemon=True).start()
 
 
 def load_env():
@@ -140,6 +173,7 @@ def simplify_result(acr):
             "artist": ", ".join(a.get("name", "") for a in item.get("artists", [])) or "Unknown artist",
             "score": item.get("score"),
             "spotify_url": f"https://open.spotify.com/track/{track_id}" if track_id else None,
+            "spotify_id": track_id,
         })
     return {"ok": True, "matches": matches, "message": ""}
 
@@ -160,7 +194,53 @@ class Handler(BaseHTTPRequestHandler):
         "/karry-no-key-logo-pink.svg": ("karry-no-key-logo-pink.svg", "image/svg+xml"),
     }
 
+    def send_html(self, status, message):
+        page = ("<!doctype html><meta charset='utf-8'><title>Karry-No-Key</title>"
+                "<body style='font-family:sans-serif;background:#FFF3F8;color:#2A1F2D;"
+                "text-align:center;padding:60px 20px'><h1 style='color:#B8336A'>Karry-No-Key</h1>"
+                f"<p style='font-size:20px'>{message}</p></body>")
+        data = page.encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def handle_spotify_pages(self, url):
+        env = load_env()
+        keys = (env.get("SPOTIFY_CLIENT_ID", ""), env.get("SPOTIFY_CLIENT_SECRET", ""))
+        if not all(keys) or any(k.startswith("replace-with") for k in keys):
+            self.send_html(500, "Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET to your .env file, "
+                                "then restart the app.")
+            return
+        if url.path == "/spotify/login":
+            if self.headers.get("Host", "").split(":")[0] != "127.0.0.1":
+                # Spotify only sends you back to 127.0.0.1, so start from there.
+                self.send_response(302)
+                self.send_header("Location", f"http://127.0.0.1:{PORT}/spotify/login")
+                self.end_headers()
+                return
+            self.send_response(302)
+            self.send_header("Location", spotify.login_url(env))
+            self.end_headers()
+            return
+        # /spotify/callback
+        q = parse_qs(url.query)
+        if "error" in q:
+            self.send_html(400, "Spotify login was cancelled. Try again at /spotify/login.")
+            return
+        try:
+            spotify.finish_login(env, q.get("code", [""])[0], q.get("state", [""])[0])
+            self.send_html(200, "Spotify connected! &#127881; You can close this tab. "
+                                "Songs you save from the watch go to your <b>Sung It</b> playlist.")
+        except spotify.SpotifyError as e:
+            self.send_html(400, str(e))
+
     def do_GET(self):
+        url = urlparse(self.path)
+        if url.path in ("/spotify/login", "/spotify/callback"):
+            self.handle_spotify_pages(url)
+            return
         if self.path not in self.STATIC_FILES:
             self.send_error(404)
             return
@@ -187,7 +267,44 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def send_text(self, text):
+        data = to_plain_ascii_lines(text).encode("ascii")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=ascii")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def save_watch_match(self):
+        """The watch's BOOT button was pressed on a match: save that song to Spotify."""
+        if not last_watch_match:
+            self.send_text("error\nNothing to save yet. Sing a song first.")
+            return
+        song = dict(last_watch_match)
+        try:
+            spotify.save_song(load_env(), song["title"], song["artist"], song.get("spotify_id"))
+            print(f"Saved to Spotify: {song['title']} by {song['artist']}")
+            track("watch_saved_to_spotify", {"title": song["title"], "artist": song["artist"]})
+            self.send_text("saved\nSaved to Sung It")
+        except (spotify.SpotifyError, urllib.error.URLError, KeyError) as e:
+            print("Spotify save failed:", e)
+            track("watch_save_failed", {"title": song["title"], "error": str(e)[:200]})
+            message = str(e) if isinstance(e, spotify.SpotifyError) else "Couldn't reach Spotify."
+            self.send_text("error\n" + message)
+
     def do_POST(self):
+        global last_watch_match
+        if self.path == "/save-watch":
+            self.save_watch_match()
+            return
+        if self.path == "/reject-watch":
+            # "Not my song" on the watch: a wrong guess. Recorded so we can measure accuracy.
+            song = last_watch_match or {}
+            track("watch_rejected_match", {"title": song.get("title", ""), "artist": song.get("artist", ""),
+                                           "acr_title": song.get("acr_title", song.get("title", ""))})
+            print(f"Not my song: {song.get('title', '?')} by {song.get('artist', '?')}")
+            self.send_text("ok")
+            return
         # /identify is used by the laptop web page; /identify-watch by the Karry-No-Key watch.
         if self.path not in ("/identify", "/identify-watch"):
             self.send_error(404)
@@ -211,16 +328,53 @@ class Handler(BaseHTTPRequestHandler):
         except urllib.error.URLError as e:
             result = {"ok": False, "matches": [], "message": f"Could not reach ACRCloud: {e}"}
         print("ACRCloud result:", json.dumps(result))
+        prefer_original_version(result)
         if self.path == "/identify-watch":
+            top = result["matches"][0] if result.get("matches") else {}
+            last_watch_match = top
+            track("watch_sang")
+            if top:
+                track("watch_song_matched", {"title": top["title"], "artist": top["artist"],
+                                             "score": top.get("score"),
+                                             "acr_title": top.get("acr_title", top["title"]),
+                                             "acr_artist": top.get("acr_artist", top["artist"])})
+            else:
+                track("watch_no_match" if result.get("ok") else "watch_error",
+                      {"message": result.get("message", "")})
             self.send_watch_text(result)
         else:
             self.send_json(200, result)
+
+
+def prefer_original_version(result):
+    """Swap ACRCloud's top match for the original recording on Spotify, if Spotify is connected.
+    Keeps what ACRCloud actually heard in acr_title / acr_artist so we can measure it."""
+    if not result.get("matches") or not spotify.is_connected():
+        return
+    top = result["matches"][0]
+    try:
+        original = spotify.find_original(load_env(), top["title"])
+    except (spotify.SpotifyError, urllib.error.URLError) as e:
+        print("Couldn't look up the original version:", e)
+        return
+    if not original:
+        return
+    top["acr_title"], top["acr_artist"] = top["title"], top["artist"]
+    top.update(original)
+    top["spotify_url"] = f"https://open.spotify.com/track/{original['spotify_id']}"
+    if (top["acr_title"], top["acr_artist"]) != (top["title"], top["artist"]):
+        print(f"Original version: {top['title']} by {top['artist']} "
+              f"(ACRCloud heard: {top['acr_title']} by {top['acr_artist']})")
 
 
 def to_plain_ascii(text):
     """Turn 'Beyoncé' into 'Beyonce' etc., because the watch's basic font only has plain letters."""
     text = unicodedata.normalize("NFKD", str(text)).encode("ascii", "ignore").decode("ascii")
     return text.replace("\n", " ").strip()
+
+
+def to_plain_ascii_lines(text):
+    return "\n".join(to_plain_ascii(line) for line in str(text).split("\n"))
 
 
 def laptop_ip_address():
@@ -238,5 +392,7 @@ def laptop_ip_address():
 if __name__ == "__main__":
     print(f"Karry-No-Key is running. Open http://localhost:{PORT} in Chrome. Press Ctrl+C to stop.")
     print(f"For the watch: this laptop's address is {laptop_ip_address()}")
+    if not spotify.is_connected():
+        print(f"Spotify not connected yet: open http://127.0.0.1:{PORT}/spotify/login on this laptop.")
     # "0.0.0.0" lets the watch reach the server from the same Wi-Fi, not just Chrome on this laptop.
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

@@ -1,7 +1,8 @@
-// Karry-No-Key watch, version 1.
-// Press the BOOT button, sing for 12 seconds, and the watch sends the recording over Wi-Fi
-// to the Karry-No-Key app on your laptop, which asks ACRCloud what the song is.
-// The answer appears on the watch screen.
+// Karry-No-Key watch, version 2.
+// Tap "Tap to sing" (or press BOOT), sing for 12 seconds, and the watch sends the recording over
+// Wi-Fi to the Karry-No-Key app on your laptop, which asks ACRCloud what the song is.
+// The watch asks "Is this [song]?" with two touch buttons: "Add to playlist" saves it to your
+// Spotify "Sung It" playlist; "Not my song" skips it and tells PostHog the guess was wrong.
 //
 // Fill in secrets.h (Wi-Fi name, Wi-Fi password, laptop address) before uploading.
 
@@ -22,6 +23,13 @@ const uint8_t MIC_GAIN = 10;                          // microphone boost: 10 = 
 const int BOOT_BUTTON = 0;                            // the watch's BOOT button
 const uint16_t BRAND_PINK = 0xEAD2;                   // #EE5A93
 const uint16_t TEXT_WHITE = 0xFFFF;                   // white (defined here so library updates can't break it)
+
+// ---------- On-screen buttons (position and size in pixels; the screen is 410 x 502) ----------
+// Defined up here, before any functions, so Arduino's automatic setup can see them.
+struct Button { int x, y, w, h; };
+const Button SING_BUTTON   = { 55, 300, 300, 110 };
+const Button ADD_BUTTON    = { 30, 330, 350, 70 };
+const Button REJECT_BUTTON = { 30, 415, 350, 60 };
 
 // ---------- Screen ----------
 Arduino_DataBus *bus = new Arduino_ESP32QSPI(LCD_CS, LCD_SCLK, LCD_SDIO0, LCD_SDIO1, LCD_SDIO2, LCD_SDIO3);
@@ -163,10 +171,123 @@ void writeWavHeader(uint8_t *h, uint32_t dataBytes) {
   memcpy(h + 36, "data", 4);  put32(40, dataBytes);
 }
 
+// ---------- Touchscreen ----------
+// The touch chip (FT3168) sits on the same I2C wires as the microphone chip.
+// Register 0x02 = how many fingers are touching; 0x03-0x06 = where the first finger is.
+const uint8_t TOUCH_ADDRESS = 0x38;
+bool touchReady = false;
+
+bool startTouch() {
+  Wire.beginTransmission(TOUCH_ADDRESS);
+  touchReady = (Wire.endTransmission() == 0);
+  Serial.println(touchReady ? "Touchscreen started" : "Touchscreen not found (BOOT button still works)");
+  return touchReady;
+}
+
+// True while a finger is on the screen; fills in x and y (in screen pixels).
+bool readTouch(int &x, int &y) {
+  if (!touchReady) return false;
+  Wire.beginTransmission(TOUCH_ADDRESS);
+  Wire.write(0x02);
+  if (Wire.endTransmission(false) != 0) return false;
+  if (Wire.requestFrom(TOUCH_ADDRESS, (uint8_t)5) != 5) return false;
+  uint8_t fingers = Wire.read() & 0x0F;
+  uint8_t xh = Wire.read(), xl = Wire.read(), yh = Wire.read(), yl = Wire.read();
+  if (fingers == 0 || fingers > 2) return false;
+  x = ((xh & 0x0F) << 8) | xl;
+  y = ((yh & 0x0F) << 8) | yl;
+  return true;
+}
+
+// ---------- Buttons on screen ----------
+
+// filled = white button with pink writing; otherwise a white outline with white writing.
+void drawButton(const Button &b, const String &label, int textSize, bool filled) {
+  if (filled) gfx->fillRoundRect(b.x, b.y, b.w, b.h, 24, TEXT_WHITE);
+  else {
+    gfx->drawRoundRect(b.x, b.y, b.w, b.h, 24, TEXT_WHITE);
+    gfx->drawRoundRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2, 23, TEXT_WHITE);
+    gfx->drawRoundRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4, 22, TEXT_WHITE);
+  }
+  gfx->setTextSize(textSize);
+  gfx->setTextColor(filled ? BRAND_PINK : TEXT_WHITE);
+  int tx = b.x + (b.w - (int)label.length() * 6 * textSize) / 2;
+  int ty = b.y + (b.h - 8 * textSize) / 2;
+  gfx->setCursor(tx, ty);
+  gfx->print(label);
+}
+
+// A little extra room around each button so it's easy to hit with a finger.
+bool inside(const Button &b, int x, int y) {
+  const int pad = 12;
+  return x >= b.x - pad && x <= b.x + b.w + pad && y >= b.y - pad && y <= b.y + b.h + pad;
+}
+
+void waitForRelease() {
+  int x, y;
+  while (readTouch(x, y) || digitalRead(BOOT_BUTTON) == LOW) delay(20);
+}
+
+// Wait for a tap on one of the buttons (or BOOT, which counts as the first button).
+// Returns 0 for the first button, 1 for the second, or -1 if nothing within timeoutMs (0 = wait forever).
+int waitForChoice(const Button *buttons, int count, unsigned long timeoutMs) {
+  waitForRelease();
+  unsigned long start = millis();
+  while (timeoutMs == 0 || millis() - start < timeoutMs) {
+    if (digitalRead(BOOT_BUTTON) == LOW) { waitForRelease(); return 0; }
+    int x, y;
+    if (readTouch(x, y)) {
+      for (int i = 0; i < count; i++) {
+        if (inside(buttons[i], x, y)) {
+          gfx->fillRoundRect(buttons[i].x, buttons[i].y, buttons[i].w, buttons[i].h, 24, 0xF5B6);  // flash light pink
+          waitForRelease();
+          return i;
+        }
+      }
+    }
+    delay(25);
+  }
+  return -1;
+}
+
+// Show a message for 5 seconds, then go back to the "Tap to sing" home screen.
+void showThenReturn(const String &heading, const String &body) {
+  showScreen(heading, body);
+  delay(5000);
+}
+
+// ---------- Talking to the laptop app ----------
+// Send a small request to the laptop app and return its reply ("" if it couldn't be reached).
+String askLaptop(const char *path) {
+  HTTPClient http;
+  http.begin(String("http://") + LAPTOP_IP + ":8000" + path);
+  http.setTimeout(20000);
+  int code = http.POST((uint8_t *)"", 0);
+  String reply = code == 200 ? http.getString() : "";
+  http.end();
+  Serial.printf("%s replied %d: %s\n", path, code, reply.c_str());
+  return reply;
+}
+
+// Save the song the laptop app just matched to the "Sung It" playlist.
+void saveToSpotify(const String &title) {
+  showScreen("Saving...", title);
+  String reply = askLaptop("/save-watch");
+  if (reply.startsWith("saved")) {
+    showThenReturn("Saved!", title + " is in your Sung It playlist.");
+  } else {
+    int nl = reply.indexOf('\n');
+    String why = nl >= 0 ? reply.substring(nl + 1) : String("Couldn't reach the laptop app.");
+    showThenReturn("Not saved", why);
+  }
+}
+
 // ---------- The main flow ----------
-void waitForButton() {
-  while (digitalRead(BOOT_BUTTON) == HIGH) delay(20);   // wait for a press
-  while (digitalRead(BOOT_BUTTON) == LOW) delay(20);    // and the release
+void showReadyScreen() {
+  gfx->fillScreen(BRAND_PINK);
+  centredLine("Karry-No-Key", 120, 5);
+  centredWrapped("Sing 12 seconds of the song stuck in your head", 200, 2);
+  drawButton(SING_BUTTON, "Tap to sing", 4, true);
 }
 
 void singAndIdentify() {
@@ -178,7 +299,7 @@ void singAndIdentify() {
   int16_t *stereo = (int16_t *)ps_malloc(stereoBytes);
   uint8_t *wav = (uint8_t *)ps_malloc(wavBytes);
   if (!stereo || !wav) {
-    showScreen("Oops", "Not enough memory. Check PSRAM is set to OPI PSRAM in Tools.");
+    showThenReturn("Oops", "Not enough memory. Check PSRAM is set to OPI PSRAM in Tools.");
     free(stereo); free(wav);
     return;
   }
@@ -215,7 +336,7 @@ void singAndIdentify() {
   double loudness = framesGot ? sqrt(energy[ch] / framesGot) / 32768.0 : 0;
   Serial.printf("Recorded %u samples, loudness %.4f (channel %d)\n", framesGot, loudness, ch);
   if (loudness < 0.005) {
-    showScreen("I couldn't hear you!", "Sing a bit louder, closer to the watch. Press BOOT to try again.");
+    showThenReturn("I couldn't hear you!", "Sing a bit louder, closer to the watch, then try again.");
     free(wav);
     return;
   }
@@ -224,8 +345,7 @@ void singAndIdentify() {
   showScreen("Listening...", "Asking ACRCloud what song that was");
   if (WiFi.status() != WL_CONNECTED) WiFi.reconnect();
   HTTPClient http;
-  String url = String("http://") + LAPTOP_IP + ":8000/identify-watch";
-  http.begin(url);
+  http.begin(String("http://") + LAPTOP_IP + ":8000/identify-watch");
   http.setTimeout(30000);
   http.addHeader("Content-Type", "audio/wav");
   int code = http.POST(wav, 44 + framesGot * 2);
@@ -235,7 +355,7 @@ void singAndIdentify() {
   Serial.printf("Server replied %d: %s\n", code, reply.c_str());
 
   if (code != 200) {
-    showScreen("Can't reach laptop", "Is the Karry-No-Key app running, on the same Wi-Fi, with the right address in secrets.h? Press BOOT to retry.");
+    showThenReturn("Can't reach laptop", "Is the Karry-No-Key app running, on the same Wi-Fi, with the right address in secrets.h?");
     return;
   }
 
@@ -251,13 +371,25 @@ void singAndIdentify() {
 
   if (lines[0] == "match") {
     gfx->fillScreen(BRAND_PINK);
-    centredLine("Is this...", 90, 3);
-    int y = centredWrapped(lines[1], 160, 4);
-    y = centredWrapped(lines[2], y + 20, 3);
-    centredWrapped("Press BOOT to sing again", y + 50, 2);
+    centredLine("Is this", 50, 3);
+    int titleSize = lines[1].length() > 28 ? 3 : 4;   // smaller text for long song titles
+    int y = centredWrapped(lines[1] + "?", 100, titleSize);
+    centredWrapped(lines[2], y + 10, 2);
+    drawButton(ADD_BUTTON, "Add to playlist", 3, true);
+    drawButton(REJECT_BUTTON, "Not my song", 3, false);
+    const Button choices[2] = { ADD_BUTTON, REJECT_BUTTON };
+    int choice = waitForChoice(choices, 2, 30000);
+    if (choice == 0) {
+      saveToSpotify(lines[1]);
+    } else if (choice == 1) {
+      askLaptop("/reject-watch");   // tells PostHog it guessed wrong
+      showThenReturn("Got it", "Not saved. Try singing the chorus again.");
+    } else {
+      showThenReturn("Skipped", "Not saved.");
+    }
   } else {
     String msg = lines[3].length() ? lines[3] : String("No match found.");
-    showScreen("No match", msg + " Press BOOT to try again.");
+    showThenReturn("No match", msg);
   }
 }
 
@@ -274,6 +406,7 @@ void setup() {
     showScreen("Mic problem", "The microphone didn't start. Try unplugging and replugging the watch.");
     return;
   }
+  startTouch();   // uses the same I2C wires, which startAudioChip() switched on
 
   // Wi-Fi
   showScreen("Karry-No-Key", String("Joining Wi-Fi: ") + WIFI_NAME);
@@ -286,12 +419,12 @@ void setup() {
   }
   Serial.print("Watch Wi-Fi address: ");
   Serial.println(WiFi.localIP());
-
-  showScreen("Ready to sing!", "Press the BOOT button, then sing for 12 seconds");
 }
 
 void loop() {
   if (WiFi.status() != WL_CONNECTED) { delay(500); return; }
-  waitForButton();
+  showReadyScreen();
+  const Button singOnly[1] = { SING_BUTTON };
+  waitForChoice(singOnly, 1, 0);   // wait for "Tap to sing" (or the BOOT button)
   singAndIdentify();
 }

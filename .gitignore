@@ -31,3 +31,6 @@ out/
 
 # Watch Wi-Fi details (never commit)
 watch/**/secrets.h
+
+# Spotify login token (never commit)
+.spotify_token.json
