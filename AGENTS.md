@@ -16,7 +16,7 @@
 - **Watch (Waveshare ESP32-S3 2.06" AMOLED):** code in `watch/KarryNoKey_Watch/`. Copy `secrets.example.h` to `secrets.h` (git-ignored) and fill in Wi-Fi name, password and the laptop's address (printed when `app/server.py` starts). In Arduino IDE: esp32 by Espressif board package, board **ESP32S3 Dev Module**, USB CDC On Boot Enabled, Flash 16MB, Partition "16M Flash (3MB APP/9.9MB FATFS)", PSRAM OPI PSRAM; library "GFX Library for Arduino". Laptop app must be running on the same 2.4 GHz Wi-Fi with no VPN. Press BOOT on the watch, sing 12 seconds; the watch posts the WAV to `/identify-watch` and shows the top match. Mics are on the ES7210 chip (I2C 0x40).
 
 ## 2b. Deployment (Render)
-The app is deployed as a Render **Web Service** from this GitHub repo. Live URL: `[add your onrender.com URL]`
+The app is deployed as a Render **Web Service** from this GitHub repo. Live URL: https://karry-no-key.onrender.com
 
 **One-time setup**
 1. Sign in at render.com with GitHub. New → **Web Service** → **Public Git Repository** → paste `https://github.com/building-with-ai-f26/gac9718-karry-no-key` → Connect.
