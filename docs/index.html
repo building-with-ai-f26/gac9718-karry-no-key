@@ -169,6 +169,10 @@
     }
     .stat-note { font-size: 14px; color: var(--muted); margin-top: 6px; }
     .demo-img { display: block; width: 100%; height: auto; border-radius: 12px; margin: 12px 0; }
+    .media-row { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
+    .media-row figure { flex: 1 1 220px; max-width: 320px; margin: 0; }
+    .media-row video, .media-row img { display: block; width: 100%; height: auto; border-radius: 12px; background: #000; }
+    .media-row figcaption { font-size: 14px; color: var(--muted); margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -191,8 +195,25 @@
       <h2>Product Showcase (Prototype / Live App / 2-Min Video)</h2>
       <p>
         <strong>Current Status:</strong> <strong>Build 3: live at <a href="https://karry-no-key.onrender.com" target="_blank" rel="noopener">karry-no-key.onrender.com</a></strong> (works on your phone; may take up to a minute to wake up)<br />
-        <strong>Demo:</strong> The laptop app running locally, plus the happy path screen flow and product render
+        <strong>Demo:</strong> The watch working end to end, the live web app on my phone, and the song landing in Spotify
       </p>
+      <div class="media-row">
+        <figure>
+          <video src="images/build3-watch-demo.mp4" poster="images/build3-watch-demo-poster.jpg" controls playsinline preload="none" width="540" height="960"
+            aria-label="Video of the Karry-No-Key watch: tap to sing, a countdown while I sing, then 'Is this Choosin' Texas? Ella Langley' with Add to playlist and Not my song buttons, then 'Saved!'"></video>
+          <figcaption>The watch: sing → "Is this Choosin' Texas?" → Add to playlist → Saved!</figcaption>
+        </figure>
+        <figure>
+          <img src="images/build3-phone-live.jpg" width="585" height="1266" loading="lazy"
+            alt="The live Karry-No-Key web app open on my iPhone over 5G at karry-no-key.onrender.com, showing the pink logo and the Tap to sing button." />
+          <figcaption>The live web app on my phone, over 5G (not Wi-Fi)</figcaption>
+        </figure>
+        <figure>
+          <video src="images/build3-sung-it-playlist.mp4" poster="images/build3-sung-it-poster.jpg" controls playsinline muted preload="none" width="432" height="934"
+            aria-label="Screen recording of Spotify on my phone: the Sung It playlist, 'Songs I sang into Karry-No-Key', containing Gimme! Gimme! Gimme! by ABBA and Choosin' Texas by Ella Langley."></video>
+          <figcaption>Spotify: both songs saved to my "Sung It" playlist</figcaption>
+        </figure>
+      </div>
       <img class="demo-img" src="images/laptop-app-match.png" width="1246" height="1114" loading="lazy"
         alt="The Karry-No-Key laptop app after singing: under the pink logo and 'Sing again' button it asks 'Is it one of these?' and shows the top match, Gimme! Gimme! Gimme! (A Man After Midnight) by ABBA, with a match score of 0.96." />
       <p class="caption">Build 2 laptop app working end to end: I sang into my laptop mic, the server sent the clip to ACRCloud, and it came back with the right song as its top match (ABBA, match score 0.96). It picked a remix rather than the original, so the app now puts original versions first.</p>
@@ -207,7 +228,7 @@
       <h2>Living PRD (Product Requirements Document)</h2>
       <p class="meta">Updated every week as we test with real users and learn what works.</p>
 
-      <p class="meta"><strong>PRD v2 · 15 Nov 2026.</strong> Updated after Build 2: the laptop version works, the hardware is now the Waveshare watch with built-in mics, and the riskiest assumption has its first evidence.</p>
+      <p class="meta"><strong>PRD v3 · 22 Nov 2026.</strong> Updated after Build 3: the core workflow works end to end on the watch and on a public website, songs save to Spotify with one tap, and the riskiest assumption has more evidence (including a miss).</p>
 
       <h3>1. Target User & The Job to Be Done</h3>
       <p><strong>Who is this for?</strong> Anyone who has a song stuck in their head and loves to sing it out loud on the go! For user testing, I'm starting with NYU students: people who'll enjoy the novelty of the device, aren't afraid to sing out loud, and would use it in their social lives and while studying.</p>
@@ -216,7 +237,8 @@
 
       <h3>2. Scope & Explicit Non-Goals</h3>
       <ul>
-        <li><strong>In Scope (Core Workflow):</strong> Sing 10–15 seconds of a song into Karry-No-Key, see the identified song on screen, and add it to a Spotify playlist with one tap. Built first as a laptop app (working now), then moved onto the watch.</li>
+        <li><strong>In Scope (Core Workflow):</strong> Sing 10–15 seconds of a song into Karry-No-Key, see the identified song on screen, and add it to a Spotify playlist with one tap. <strong>Working now</strong> on the watch and on the live website (any phone or laptop).</li>
+        <li><strong>Not yet (Build 4):</strong> Sign-in and personal playlists. For now every song goes into one shared "Sung It" playlist on my Spotify account, so testers don't need to sign in or connect their own Spotify. Spotify's developer mode only allows 5 connected users anyway, so the plan is a Karry-No-Key "My Songs" library first, with Spotify as an extra.</li>
         <li><strong>Out of Scope #1:</strong> Playing songs out loud from the watch's speaker.</li>
         <li><strong>Out of Scope #2:</strong> Lyrics from Spotify on the watch screen so users can sing along.</li>
         <li><strong>Out of Scope #3:</strong> Lyric-based recognition (turning sung words into text as a backup to melody matching). It would improve accuracy, but it's too complex for this build, so I'm relying on melody matching alone.</li>
@@ -225,7 +247,8 @@
 
       <h3>3. How It Works Under the Hood & Riskiest Assumption (Week 2+)</h3>
       <p><strong>Riskiest Assumption:</strong> That ACRCloud can correctly identify a song from 10–15 seconds of amateur singing recorded on a laptop or watch mic. If it can't get the right song in its top 3 guesses most of the time, the product doesn't work.</p>
-      <p><strong>Evidence so far:</strong> 2 out of 2 correct. I sang <em>Gimme! Gimme! Gimme!</em> (ABBA) and <em>Man I Need</em> (Olivia Dean), and both came back as the top guess with a match score of 0.96. Two catches: both times it returned a remix rather than the original (the app now puts originals first), and one quiet recording failed completely (the app now asks you to sing louder). Two songs, both sung by me, isn't proof yet.</p>
+      <p><strong>Evidence so far (Build 3):</strong> 3 out of 4 right as the top guess. On the watch, my first try came back as <em>End Credits</em> (Chase &amp; Status), which was wrong, so I tapped "Not my song" and nothing was saved. My next try got <em>Choosin' Texas</em> (Ella Langley) and saved it to Spotify. It's still a small sample, all sung by me, so the 5 tester recordings in Build 4 are the real test.</p>
+      <p><strong>Evidence from Build 2:</strong> 2 out of 2 correct. I sang <em>Gimme! Gimme! Gimme!</em> (ABBA) and <em>Man I Need</em> (Olivia Dean), and both came back as the top guess with a match score of 0.96. Two catches: both times it returned a remix rather than the original (the app now puts originals first), and one quiet recording failed completely (the app now asks you to sing louder). Two songs, both sung by me, isn't proof yet.</p>
       <p><strong>How I'll test it this week:</strong> record 5 NYU students each singing a different song into the laptop app, and count how often the right song is in the top 3. PostHog tracks every attempt, so the result comes from real data, not my memory.</p>
       <p><strong>Who I'll record and how I'll reach them:</strong></p>
       <ul>
@@ -236,25 +259,26 @@
         <li>Amanda Tripodi – NYU Stern – reaching out via text</li>
       </ul>
       <p><strong>Other risks:</strong> Spotify has tightened developer access (Premium needed, and only 5 test users can connect), and my ACRCloud free trial runs out in about 2 weeks.</p>
-      <p><strong>Simple Architecture (now, laptop version):</strong> User sings into the laptop mic → web page sends the clip to the Karry-No-Key server on my laptop → ACRCloud matches the melody → page shows the top 3 matches with a link to each in Spotify</p>
-      <p><strong>Simple Architecture (next, watch version):</strong> User sings into the watch's built-in mics → watch sends the clip over Wi-Fi to the Karry-No-Key server → ACRCloud matches the melody → watch shows the top match with a confirm button → server adds the song to the user's Spotify playlist</p>
+      <p><strong>Simple Architecture (now, website):</strong> User opens <a href="https://karry-no-key.onrender.com" target="_blank" rel="noopener">karry-no-key.onrender.com</a> on any phone or laptop and sings → the page sends the clip to the Karry-No-Key server (hosted on Render) → ACRCloud matches the melody → Spotify swaps any remix or cover for the original → page shows the top 3 matches → one tap on "Add to playlist" and the server adds it to the "Sung It" playlist</p>
+      <p><strong>Simple Architecture (now, watch):</strong> User taps "Tap to sing" and sings into the watch's built-in mics → watch sends the clip over Wi-Fi to the Karry-No-Key server → ACRCloud matches the melody → watch asks "Is this [song]?" → "Add to playlist" saves it to Spotify, "Not my song" throws it away → back to the home screen</p>
+      <p><strong>Keeping it safe without sign-in:</strong> there's no database yet. All the secret keys (ACRCloud and Spotify) live only in Render's settings, never in the code or on GitHub. The page can't write to Spotify itself: it asks the server, using a one-time "save ticket" the server handed out with that match, so nobody can add random songs. Each person can sing up to 30 times an hour, to protect my ACRCloud allowance.</p>
 
       <h3>4. Unit Economics & Analytics Snapshot (Updated Weekly)</h3>
       <div class="grid-2">
         <div class="stat-box">
           <div class="stat-label">Cumulative Build Spend</div>
-          <div class="stat-value">~$60 to date (projected ~$90–130 total)</div>
-          <div class="stat-note">Waveshare watch $39.35 + Claude ~$21 (estimated at API rates; covered by my subscription) + ACRCloud and PostHog $0 (free tiers). Still to come: more Claude usage, Spotify Premium for API access if needed (~$12/month), and an ACRCloud plan once the free trial ends.</div>
+          <div class="stat-value">~$80 to date (projected ~$100–140 total)</div>
+          <div class="stat-note">Waveshare watch $39.35 + Claude ~$41 (estimated at API rates; covered by my subscription) + ACRCloud, PostHog, Render and the Spotify API $0 (free tiers). Still to come: more Claude usage, Spotify Premium for API access if needed (~$12/month), and an ACRCloud plan once the free trial ends.</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Est. Cost Per User Run</div>
           <div class="stat-value">~$0.01 per song identified</div>
-          <div class="stat-note">One ACRCloud recognition per sing (estimated; $0 during the free trial). The laptop server and Spotify links cost nothing.</div>
+          <div class="stat-note">One ACRCloud recognition per sing (estimated; $0 during the free trial). Hosting on Render's free tier and saving to Spotify cost nothing.</div>
         </div>
         <div class="stat-box">
-          <div class="stat-label">User Evidence (Analytics from Build 2)</div>
-          <div class="stat-value">2 of 2 songs correct (my own tests)</div>
-          <div class="stat-note">Right song as the top guess both times, though both were remixes rather than the originals. PostHog now tracks every sing, match, no-match and Spotify click; next up is 5 outside testers for a real accuracy rate (% right song in the top 3).</div>
+          <div class="stat-label">User Evidence (Analytics from Build 3)</div>
+          <div class="stat-value">3 of 4 songs correct (my own tests)</div>
+          <div class="stat-note">The one miss was caught by "Not my song", so no wrong song was saved. PostHog now tracks the full funnel on both the website and the watch: sang → matched / no match → added to playlist (or rejected). Next up is 5 outside testers for a real accuracy rate (% right song in the top 3).</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Sponsor Call (Week 6)</div>
@@ -319,9 +343,32 @@
       <div class="log-entry">
         <h3>Build 3 · Build.exe: The Core Workflow (Due Nov 23)</h3>
         <ul>
-          <li><strong>What shipped:</strong> [End-to-end workflow working with real inputs + PostHog funnel events]</li>
-          <li><strong>What broke / changed in PRD:</strong> [Fill in]</li>
-          <li><strong>Cost & time this week:</strong> $[0.00] · [0] hours</li>
+          <li><strong>What shipped:</strong> The full core workflow, working with real singing, on two devices: sing → it finds the song → one tap saves it to Spotify.
+            <ul>
+              <li><strong>It's live:</strong> anyone can use it at <a href="https://karry-no-key.onrender.com" target="_blank" rel="noopener">karry-no-key.onrender.com</a> on their phone or laptop. I tested it on my iPhone over 5G (not Wi-Fi), so it really works from anywhere, not just on my laptop.</li>
+              <li><strong>One-tap "Add to playlist":</strong> every match now has an "Add to playlist" button that saves the song to a Spotify playlist called "Sung It", with a link to open it. This replaces Build 2's "Open in Spotify" link.</li>
+              <li><strong>The watch works end to end:</strong> tap "Tap to sing" on the touchscreen, sing during the 12-second countdown, and it asks "Is this [song]?" with two buttons: "Add to playlist" or "Not my song". After saving, it goes back to the home screen after 5 seconds. The screens use the Karry-No-Key brand font and pink.</li>
+              <li><strong>Originals, not covers:</strong> when ACRCloud returns a remix, cover or karaoke version, the app now looks up the original on Spotify and saves that instead.</li>
+              <li><strong>PostHog funnel on both devices:</strong> website events are <code>tapped_sing</code> → <code>song_matched</code> / <code>no_match</code> / <code>too_quiet</code> → <code>saved_to_spotify</code> / <code>save_failed</code>. Watch events are <code>watch_sang</code> → <code>watch_song_matched</code> / <code>watch_no_match</code> → <code>watch_saved_to_spotify</code> / <code>watch_rejected_match</code>.</li>
+              <li><strong>Deployed safely:</strong> no sign-in or database needed yet. Keys live only in Render's settings, saves go through the server with a one-time ticket, and there's a limit of 30 sings an hour per person. The deployment steps are written up in <code>AGENTS.md</code>.</li>
+            </ul>
+          </li>
+          <li><strong>Videos & screenshots:</strong> see the Product Showcase at the top of this page: the watch identifying and saving <em>Choosin' Texas</em>, the live site on my phone, and both songs in my "Sung It" playlist on Spotify.</li>
+          <li><strong>Classmate test:</strong> [Name] opened the live link on their own phone and [result: which song, was it right, did it save?]</li>
+          <li><strong>Things learned with AI:</strong> How to put an app on the internet. Until now it only ran on my laptop; now it runs on a server anyone can reach. I learned how hosting works (Render builds my code straight from GitHub every time I push), why secret keys go in the host's settings rather than the code, and how to let people save songs without sign-in while stopping strangers from abusing it. On the watch side I learned that hardware bugs are a different beast: the fix was often a single setting buried in a chip's datasheet.</li>
+          <li><strong>What broke / changed in PRD:</strong>
+            <ul>
+              <li><strong>The watch couldn't hear me:</strong> it recorded total silence. The mics turned out to be wired to a different audio chip from the one in the example code, so Claude wrote the set-up code for the right chip, and the watch heard me straight away.</li>
+              <li><strong>Spotify said no (error 403):</strong> Spotify changed its API in February 2026, and the old way of creating playlists and adding songs no longer works for new apps. We switched to the new endpoints.</li>
+              <li><strong>A blank, striped screen:</strong> after changing to the brand font, the screen showed stripes and no text. This screen can only draw in 2-pixel steps, so the watch now draws each screen in memory first and sends it all at once. The touchscreen then stopped responding, which was fixed by resetting the touch chip properly on start-up.</li>
+              <li><strong>"Can't reach laptop":</strong> my VPN was hiding my laptop's real address from the watch. Turning it off fixed it. (The watch still uses my laptop as its server; moving it to the live site is next.)</li>
+              <li><strong>A wrong match on the watch:</strong> it guessed <em>End Credits</em> (Chase &amp; Status) instead of my song. "Not my song" did its job, as nothing was saved, but it shows accuracy is still the riskiest assumption.</li>
+              <li><strong>Phone mics:</strong> iPhones are strict about when a web page can use the microphone, so I changed the page to start the audio the moment you tap the button. It now records properly on my iPhone.</li>
+              <li><strong>PRD change:</strong> songs go into one shared "Sung It" playlist for now. Personal playlists need sign-in, which moves to Build 4.</li>
+            </ul>
+          </li>
+          <li><strong>Cost & time this week:</strong> $0 in new spend (Render, ACRCloud, PostHog and the Spotify API are all on free tiers) + ~$20 in Claude tokens (rough estimate at API rates; covered by my subscription) · 5 hours</li>
+          <li><strong>Things to note:</strong> The free Render server goes to sleep after 15 minutes without use, so the first visit can take up to a minute to load. That's fine for testing, but not for launch. Build 4 is sign-in and a "My Songs" page, plus the 5 tester recordings to get a real accuracy number.</li>
         </ul>
       </div>
 
