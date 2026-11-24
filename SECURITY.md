@@ -21,7 +21,7 @@
 | Test | Expected | Result |
 |---|---|---|
 | 32 sings in a row from one visitor (empty recordings, so no ACRCloud calls were used up) | Calls 1–30 are allowed, then `429` | ✅ 30 × `400` ("Recording is empty"), then `429` on calls 31 and 32 |
-| The same, while faking a different address in the `X-Forwarded-For` header | Still `429` | ❌ **Got past the limit** (`400` instead of `429`). **Fixed**, see section 7 |
+| The same, while faking a different address in the `X-Forwarded-For` header | Still `429` | ❌ **Got past the limit** (`400` instead of `429`). **Fixed** (section 7) and **re-tested live on 23 Nov:** faked addresses now get `429` on calls 31 and 32 ✅ |
 
 **Write routes (saving to Spotify), tested on the live site:**
 
@@ -30,7 +30,7 @@
 | `POST /save` with a made-up save ticket | Rejected | ✅ `400` "That match has expired" and nothing saved |
 | `POST /save` with no ticket | Rejected | ✅ `400` and nothing saved |
 | `GET /spotify/callback?code=x&state=y` (trying to swap in someone else's Spotify account) | Rejected | ✅ `400`. The login "state" check blocks it, and on Render the login can't be started at all |
-| `POST /save-watch` from a browser | Can only save the watch's last match | ⚠️ Worked, with no limit, and the same match could be saved again and again. **Fixed**, see section 7 |
+| `POST /save-watch` from a browser | Can only save the watch's last match | ⚠️ Worked, with no limit, and the same match could be saved again and again. **Fixed** (section 7) and **re-tested live on 23 Nov:** call 31 on the watch routes gets "Too many taps" ✅ |
 
 ## 2. Secret keys stay on the server
 
@@ -55,12 +55,14 @@ No file storage. Recordings are held in memory just long enough to send to ACRCl
 
 | Service | Cap |
 |---|---|
-| ACRCloud (the only per-use cost) | Free trial. The server allows 30 sings per visitor per hour, **plus a new limit of 300 per hour for everyone together**, so even someone faking lots of addresses can't run up more than 300 recognitions an hour. ⚠️ **To confirm:** no payment card saved on ACRCloud / no auto-upgrade when the trial ends. |
-| Render | Free instance type. ⚠️ **To confirm:** it stays on Free (no paid plan added). |
+| ACRCloud (the only per-use cost) | Free trial. The server allows 30 sings per visitor per hour, **plus a new limit of 300 per hour for everyone together**, so even someone faking lots of addresses can't run up more than 300 recognitions an hour. ✅ **Confirmed:** no payment card saved on ACRCloud and no auto-upgrade when the trial ends. |
+| Render | ✅ **Confirmed:** Free instance type, no paid plan. |
 | Spotify Web API | Free (development mode). |
-| PostHog | Free tier. ⚠️ **To confirm:** a billing limit of $0 is set under Billing. |
+| PostHog | ✅ **Confirmed:** free tier with a $0 billing limit. Session replay is on. |
 
 The routes that call a paid API or write data are rate-limited per visitor: `/identify` and `/identify-watch` (30 per hour), and `/save-watch` and `/reject-watch` (30 per hour). `/save` needs a one-time ticket, and tickets only come from a rate-limited sing.
+
+**PostHog check (live, 23 Nov):** PostHog loads on the live site, and session replay is recording ✅
 
 ## 6. Dependency audit
 
@@ -84,4 +86,4 @@ I asked Claude to read the server code and try to break the live app. It found:
 - **Rate limits are kept in memory**, so they reset when Render restarts or the app wakes from sleep. The overall cap and the one-time tickets still apply. That's fine for a class prototype, but it needs a database (Supabase with Row Level Security) at launch.
 - **Everyone saves to one shared Spotify playlist** on my account. Personal playlists need sign-in (Build 4).
 - **The watch talks to my laptop over plain HTTP on my home Wi-Fi.** Moving it to the live HTTPS site is next.
-- **To re-check after this deploy:** run the faked-address test on the live site again to confirm it now returns `429`.
+- **Test noise in analytics:** the live re-test sent about 30 empty `watch_rejected_match` events to PostHog on 23 Nov. These should be filtered out when measuring accuracy.
