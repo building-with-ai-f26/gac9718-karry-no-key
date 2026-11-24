@@ -87,3 +87,18 @@ I asked Claude to read the server code and try to break the live app. It found:
 - **Everyone saves to one shared Spotify playlist** on my account. Personal playlists need sign-in (Build 4).
 - **The watch talks to my laptop over plain HTTP on my home Wi-Fi.** Moving it to the live HTTPS site is next.
 - **Test noise in analytics:** the live re-test sent about 30 empty `watch_rejected_match` events to PostHog on 23 Nov. These should be filtered out when measuring accuracy.
+
+## Update (24 Nov 2026): new features since the audit
+
+| New route | What it does | Protection |
+|---|---|---|
+| `GET /game/round` | Finish the Lyric round (reads the Sung It playlist and LRCLIB) | 200 per visitor per hour. Lyrics are shown as plain text, never as HTML |
+| `GET /recent-songs` | Recently Sung and Top Song lists | 120 per visitor per hour; read-only |
+| `POST /watch/checkin` | The watch's "I'm here" (battery, signal, code) | Needs `WATCH_KEY`, otherwise `403` |
+| `POST /find/status`, `POST /find/ring` | Find my page | Needs the 6-digit code shown on the watch; 30 tries per visitor per hour and 100 wrong codes per hour in total |
+| `/identify-watch`, `/save-watch`, `/reject-watch` | Watch singing and saving | **Now need `WATCH_KEY`** once it's set, which fixes the earlier remaining issue "the watch routes don't know which watch is calling" |
+
+- The watch now talks to the live site over **https** and checks the site's certificate against the ESP32's built-in list of trusted authorities, so the key can't be read or faked on the Wi-Fi.
+- `WATCH_KEY` lives only in `.env`, Render's settings and the watch's git-ignored `secrets.h`.
+- **New remaining issue:** someone who keeps guessing Find my codes can trigger the overall wrong-code limit, which locks the owner out for up to an hour.
+- **New remaining issue:** LRCLIB lyrics are community-submitted, which is fine for a prototype, but a launch would need licensed lyrics.

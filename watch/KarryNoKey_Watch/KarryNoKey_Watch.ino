@@ -1,14 +1,16 @@
-// Karry-No-Key watch, version 2.
+// Karry-No-Key watch, version 3.
 // Tap "Tap to sing" (or press BOOT), sing for 12 seconds, and the watch sends the recording over
-// Wi-Fi to the Karry-No-Key app on your laptop, which asks ACRCloud what the song is.
+// Wi-Fi to the Karry-No-Key app (the live site, karry-no-key.onrender.com), which asks ACRCloud
+// what the song is.
 // The watch asks "Is this [song]?" with two touch buttons: "Add to playlist" saves it to your
 // Spotify "Sung It" playlist; "Not my song" skips it and tells PostHog the guess was wrong.
 //
-// Fill in secrets.h (Wi-Fi name, Wi-Fi password, laptop address) before uploading.
+// Fill in secrets.h (Wi-Fi name and password) before uploading.
 
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <NetworkClientSecure.h>
 #include <Wire.h>
 #include "ESP_I2S.h"
 #include "esp_check.h"
@@ -21,6 +23,15 @@
 #include "FredokaDigits110.h"   // the big countdown numbers (digits only)
 #include "pin_config.h"
 #include "secrets.h"
+#ifndef WATCH_KEY
+#define WATCH_KEY ""   // no key yet: Find my stays switched off
+#endif
+// Where the Karry-No-Key app lives. The live site works on any Wi-Fi, with no laptop needed.
+// To test with the app on your laptop instead, put this in secrets.h (with your laptop's address):
+//   #define SERVER_URL "http://192.168.1.23:8000"
+#ifndef SERVER_URL
+#define SERVER_URL "https://karry-no-key.onrender.com"
+#endif
 
 // ---------- Settings ----------
 const int RECORD_SECONDS = 12;
@@ -29,6 +40,11 @@ const uint8_t MIC_GAIN = 10;                          // microphone boost: 10 = 
 const int BOOT_BUTTON = 0;                            // the watch's BOOT button
 const uint16_t BRAND_PINK = 0xEAD2;                   // #EE5A93
 const uint16_t TEXT_WHITE = 0xFFFF;                   // white (defined here so library updates can't break it)
+const unsigned long CHECKIN_EVERY_MS = 20000;         // Find my: tell the app "I'm here" every 20 seconds
+
+// Find my: a new 6-digit code each time the watch starts. It's shown on the home screen, and the
+// Find my page asks for it, so only someone who has seen this watch can check on it or ring it.
+String findCode;
 
 // ---------- On-screen buttons (position and size in pixels; the screen is 410 x 502) ----------
 // Defined up here, before any functions, so Arduino's automatic setup can see them.
@@ -301,12 +317,59 @@ void showThenReturn(const String &heading, const String &body) {
   delay(5000);
 }
 
-// ---------- Talking to the laptop app ----------
-// Send a small request to the laptop app and return its reply ("" if it couldn't be reached).
-String askLaptop(const char *path) {
+// ---------- Battery (the AXP2101 power chip, on the same I2C wires as the touchscreen) ----------
+const uint8_t PMU_ADDRESS = 0x34;
+
+int pmuRead(uint8_t reg) {
+  Wire.beginTransmission(PMU_ADDRESS);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) return -1;
+  Wire.requestFrom(PMU_ADDRESS, (uint8_t)1);
+  return Wire.available() ? Wire.read() : -1;
+}
+
+void startBatteryGauge() {
+  int ctrl = pmuRead(0x18);                 // bit 3 switches on the battery "fuel gauge"
+  if (ctrl < 0) { Serial.println("Power chip not found: battery will show as unknown"); return; }
+  Wire.beginTransmission(PMU_ADDRESS);
+  Wire.write(0x18);
+  Wire.write(ctrl | 0x08);
+  Wire.endTransmission();
+}
+
+int batteryPercent() {                     // -1 = unknown
+  int status = pmuRead(0x00);
+  if (status < 0 || !(status & 0x08)) return -1;   // bit 3 = battery connected
+  int pct = pmuRead(0xA4);
+  return (pct >= 0 && pct <= 100) ? pct : -1;
+}
+
+bool isCharging() {
+  int status2 = pmuRead(0x01);
+  return status2 >= 0 && ((status2 >> 5) & 0x03) == 0x01;
+}
+
+// ---------- Talking to the Karry-No-Key app ----------
+// The live site uses https (encrypted). The watch checks the site's certificate against the
+// trusted list built into the ESP32, so it can't be tricked into talking to a fake server.
+NetworkClientSecure secureClient;
+NetworkClient plainClient;
+const uint16_t WAKE_UP_MS = 65000;   // the free server sleeps when unused and takes up to a minute to wake
+
+// Start a request to the app. Every request carries WATCH_KEY, so the app knows it's this watch.
+bool openRequest(HTTPClient &http, const char *path, uint16_t timeoutMs) {
+  String url = String(SERVER_URL) + path;
+  bool ok = url.startsWith("https://") ? http.begin(secureClient, url) : http.begin(plainClient, url);
+  http.setConnectTimeout(timeoutMs);
+  http.setTimeout(timeoutMs);
+  if (strlen(WATCH_KEY) > 0) http.addHeader("X-Watch-Key", WATCH_KEY);
+  return ok;
+}
+
+// Send a small request to the app and return its reply ("" if it couldn't be reached).
+String askApp(const char *path) {
   HTTPClient http;
-  http.begin(String("http://") + LAPTOP_IP + ":8000" + path);
-  http.setTimeout(20000);
+  openRequest(http, path, WAKE_UP_MS);
   int code = http.POST((uint8_t *)"", 0);
   String reply = code == 200 ? http.getString() : "";
   http.end();
@@ -314,16 +377,51 @@ String askLaptop(const char *path) {
   return reply;
 }
 
-// Save the song the laptop app just matched to the "Sung It" playlist.
+// Save the song the app just matched to the "Sung It" playlist.
 void saveToSpotify(const String &title) {
   showScreen("Saving...", title);
-  String reply = askLaptop("/save-watch");
+  String reply = askApp("/save-watch");
   if (reply.startsWith("saved")) {
     showThenReturn("Saved!", title + " is in your Sung It playlist.");
   } else {
     int nl = reply.indexOf('\n');
-    String why = nl >= 0 ? reply.substring(nl + 1) : String("Couldn't reach the laptop app.");
+    String why = nl >= 0 ? reply.substring(nl + 1) : String("Couldn't reach Karry-No-Key.");
     showThenReturn("Not saved", why);
+  }
+}
+
+// ---------- Find my Karry-No-Key ----------
+// Tell the app the watch is here (battery, Wi-Fi signal, code). Returns true if someone pressed
+// "Make it ring" on the Find my page.
+bool checkIn() {
+  if (strlen(WATCH_KEY) == 0 || WiFi.status() != WL_CONNECTED) return false;
+  int pct = batteryPercent();
+  String body = "battery=" + String(pct) + "\ncharging=" + String(isCharging() ? 1 : 0) +
+                "\nrssi=" + String(WiFi.RSSI()) + "\nwifi=" + WiFi.SSID() + "\ncode=" + findCode;
+  HTTPClient http;
+  openRequest(http, "/watch/checkin", 5000);   // short, so the home screen never feels stuck
+  int code = http.POST(body);
+  String reply = code == 200 ? http.getString() : "";
+  http.end();
+  Serial.printf("Check-in: battery %d%%, signal %d, reply %d %s\n", pct, WiFi.RSSI(), code, reply.c_str());
+  return reply.startsWith("ring");
+}
+
+// "Make it ring": flash the screen for 15 seconds, or until it's tapped.
+void ringUntilFound() {
+  unsigned long start = millis();
+  bool bright = true;
+  while (millis() - start < 15000) {
+    gfx->fillScreen(bright ? TEXT_WHITE : BRAND_PINK);
+    centredLine("Here I am!", 220, &FredokaBold40, bright ? BRAND_PINK : TEXT_WHITE);
+    centredLine("Tap to stop", 290, &FredokaMedium20, bright ? BRAND_PINK : TEXT_WHITE);
+    gfx->flush();
+    bright = !bright;
+    for (int i = 0; i < 10; i++) {          // check for a tap ten times between flashes
+      int x, y;
+      if (readTouch(x, y) || digitalRead(BOOT_BUTTON) == LOW) { waitForRelease(); return; }
+      delay(40);
+    }
   }
 }
 
@@ -333,6 +431,8 @@ void showReadyScreen() {
   centredLine("Karry-No-Key", 150, &FredokaBold40);
   centredWrapped("Sing 12 seconds of the song stuck in your head", 205, &FredokaMedium20);
   drawButton(SING_BUTTON, "Tap to sing", true);
+  if (strlen(WATCH_KEY) > 0)
+    centredLine("Find my code: " + findCode.substring(0, 3) + " " + findCode.substring(3), 465, &FredokaMedium20);
   gfx->flush();
 }
 
@@ -388,12 +488,11 @@ void singAndIdentify() {
     return;
   }
 
-  // Send it to the laptop app.
+  // Send it to the Karry-No-Key app.
   showScreen("Listening...", "Asking ACRCloud what song that was");
   if (WiFi.status() != WL_CONNECTED) WiFi.reconnect();
   HTTPClient http;
-  http.begin(String("http://") + LAPTOP_IP + ":8000/identify-watch");
-  http.setTimeout(30000);
+  openRequest(http, "/identify-watch", WAKE_UP_MS);
   http.addHeader("Content-Type", "audio/wav");
   int code = http.POST(wav, 44 + framesGot * 2);
   String reply = code > 0 ? http.getString() : "";
@@ -402,7 +501,7 @@ void singAndIdentify() {
   Serial.printf("Server replied %d: %s\n", code, reply.c_str());
 
   if (code != 200) {
-    showThenReturn("Can't reach laptop", "Is the Karry-No-Key app running, on the same Wi-Fi, with the right address in secrets.h?");
+    showThenReturn("Can't reach Karry-No-Key", "Check the watch is on Wi-Fi, then try again in a minute.");
     return;
   }
 
@@ -432,7 +531,7 @@ void singAndIdentify() {
     if (choice == 0) {
       saveToSpotify(lines[1]);
     } else if (choice == 1) {
-      askLaptop("/reject-watch");   // tells PostHog it guessed wrong
+      askApp("/reject-watch");   // tells PostHog it guessed wrong
       showThenReturn("Got it", "Not saved. Try singing the chorus again.");
     } else {
       showThenReturn("Skipped", "Not saved.");
@@ -458,6 +557,8 @@ void setup() {
     return;
   }
   startTouch();   // uses the same I2C wires, which startAudioChip() switched on
+  startBatteryGauge();
+  findCode = String(100000 + esp_random() % 900000);
 
   // Wi-Fi
   showScreen("Karry-No-Key", String("Joining Wi-Fi: ") + WIFI_NAME);
@@ -470,12 +571,28 @@ void setup() {
   }
   Serial.print("Watch Wi-Fi address: ");
   Serial.println(WiFi.localIP());
+
+  // Wake the app up now (it sleeps when nobody's using it), so the first sing is quick.
+  secureClient.useBuiltinCACertBundle();
+  showScreen("Karry-No-Key", "Waking up Karry-No-Key... this can take up to a minute");
+  HTTPClient wake;
+  openRequest(wake, "/", WAKE_UP_MS);
+  int woke = wake.GET();
+  wake.end();
+  Serial.printf("Wake-up reply: %d\n", woke);
+  checkIn();      // let Find my know straight away
 }
 
 void loop() {
   if (WiFi.status() != WL_CONNECTED) { delay(500); return; }
   showReadyScreen();
   const Button singOnly[1] = { SING_BUTTON };
-  waitForChoice(singOnly, 1, 0);   // wait for "Tap to sing" (or the BOOT button)
+  // Wait for "Tap to sing" (or BOOT). Every 20 seconds of waiting, check in with Find my.
+  while (waitForChoice(singOnly, 1, CHECKIN_EVERY_MS) < 0) {
+    if (checkIn()) {
+      ringUntilFound();
+      showReadyScreen();
+    }
+  }
   singAndIdentify();
 }

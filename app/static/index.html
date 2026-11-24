@@ -8,22 +8,49 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
-    :root { --pink: #EE5A93; --pink-dark: #B8336A; --ink: #2A1F2D; --soft: #FFF3F8; }
+    :root { --pink: #EE5A93; --pink-dark: #B8336A; --ink: #2A1F2D; --soft: #FFF3F8; --plum: #2A1F2D; --plum-2: #3A2B3F; }
     * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { height: 100%; }
     body { margin: 0; font-family: "Fredoka", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-           background: var(--soft); color: var(--ink); display: flex; justify-content: center; padding: 32px 16px; }
-    main { width: 100%; max-width: 440px; text-align: center; }
-    h1 { margin: 0 0 8px; }
-    h1 img { display: block; width: 100%; max-width: 360px; height: auto; margin: 0 auto; }
-    .sub { margin: 0 0 28px; font-size: 18px; color: #5E4D62; }
-    button#rec { width: 180px; height: 180px; border-radius: 50%; border: none; background: var(--pink);
-                 color: #fff; font-family: inherit; font-size: 22px; font-weight: 700; cursor: pointer;
-                 box-shadow: 0 10px 30px rgba(238,90,147,.4); }
-    button#rec:focus-visible { outline: 3px solid var(--pink-dark); outline-offset: 4px; }
+           background: var(--soft); color: var(--ink); }
+    button:focus-visible, a:focus-visible { outline: 3px solid var(--pink-dark); outline-offset: 3px; }
+
+    /* Two panels: the singing area, and a dark side panel with your songs */
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; min-height: 100vh; }
+    .stage { position: relative; display: flex; flex-direction: column; padding: 20px 32px 28px; min-width: 0; }
+    .side { background: var(--plum); color: #fff; padding: 28px 22px; }
+
+    /* Top bar */
+    .topbar { display: flex; align-items: center; gap: 6px; }
+    .icon-btn { width: 44px; height: 44px; border: none; border-radius: 50%; background: transparent; color: var(--ink);
+                display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+    .icon-btn:hover { background: #F6DCE8; }
+    .icon-btn svg { width: 28px; height: 28px; fill: currentColor; }
+    .welcome { margin: 0 0 0 8px; font-size: 22px; font-weight: 700; }
+    .menu { position: absolute; top: 70px; left: 24px; z-index: 20; background: #fff; border-radius: 16px; padding: 16px;
+            width: 280px; box-shadow: 0 10px 30px rgba(42,31,45,.18); }
+    .menu label { display: block; font-weight: 700; margin-bottom: 6px; }
+    .menu input { width: 100%; font-family: inherit; font-size: 17px; padding: 10px 12px; border: 2px solid var(--pink); border-radius: 12px; }
+    .menu .row { display: flex; gap: 8px; margin-top: 10px; }
+    .menu a { display: block; padding: 10px 4px; color: var(--pink-dark); font-weight: 600; text-decoration: none; }
+    .menu .small { border: none; border-radius: 999px; background: var(--pink); color: #fff; font-family: inherit;
+                   font-weight: 700; font-size: 15px; padding: 10px 16px; cursor: pointer; }
+
+    /* The singing area */
+    .centre { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 18px 0 30px; }
+    .centre h1 { margin: 6px 0 22px; }
+    .centre h1 img { display: block; width: 100%; max-width: 440px; height: auto; margin: 0 auto; }
+    .centre h2 { margin: 0 0 6px; font-size: 22px; }
+    .sub { margin: 0 0 26px; font-size: 18px; color: #5E4D62; max-width: 420px; }
+    button#rec { width: 200px; height: 200px; border-radius: 50%; border: none; background: var(--pink);
+                 color: #fff; font-family: inherit; font-size: 24px; font-weight: 700; cursor: pointer;
+                 box-shadow: 0 12px 34px rgba(238,90,147,.42); }
     button#rec:disabled { opacity: .5; cursor: default; }
     button#rec.recording { animation: pulse 1s infinite; }
     @keyframes pulse { 50% { transform: scale(1.06); } }
-    #status { margin: 20px 0; min-height: 1.4em; font-weight: 600; }
+    #status { margin: 20px 0 6px; min-height: 1.4em; font-weight: 600; }
+    #results { width: 100%; max-width: 460px; }
     .card { background: #fff; border-radius: 14px; padding: 14px 16px; margin: 10px 0; text-align: left;
             box-shadow: 0 2px 10px rgba(0,0,0,.06); }
     .card.top { border: 2px solid var(--pink); }
@@ -34,8 +61,46 @@
     .card button.save { border: none; border-radius: 999px; background: var(--pink); color: #fff;
                         font-family: inherit; font-weight: 700; font-size: 15px; padding: 10px 16px; min-height: 44px; cursor: pointer; }
     .card button.save:disabled { opacity: .6; cursor: default; }
-    .card button.save:focus-visible { outline: 3px solid var(--pink-dark); outline-offset: 2px; }
     .saved-note { margin: 8px 0 0; font-weight: 600; color: var(--pink-dark); }
+
+    /* The two buttons along the bottom */
+    .bottom { display: flex; gap: 18px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+    .pill { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 64px; padding: 14px 30px;
+            border-radius: 999px; font-weight: 700; font-size: 20px; text-decoration: none; flex: 1 1 260px; max-width: 420px; }
+    a#find { background: #fff; color: var(--pink-dark); border: 3px solid var(--pink); }
+    a#find:hover { background: #FFE6F0; }
+    a#play { background: var(--pink); color: #fff; box-shadow: 0 10px 26px rgba(238,90,147,.38); }
+    a#play:hover { background: #E24C86; }
+
+    /* Side panel: Recently sung and Top song */
+    /* Section titles: big pink words with a short underline, so they read as titles, not buttons */
+    .side-h { color: var(--pink); font-size: 30px; font-weight: 700; margin: 0 0 4px; line-height: 1.2; }
+    .side-h::after { content: ""; display: block; width: 44px; height: 4px; border-radius: 2px; background: var(--pink); margin-top: 8px; }
+    .side-h.second { margin-top: 34px; margin-bottom: 14px; }
+    .all { display: inline-block; color: #FFB3CF; font-weight: 600; text-decoration: none; padding: 6px 0 14px; }
+    .all:hover { color: #fff; }
+    .songs { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+    .songs a, .songs .nolink { display: flex; gap: 12px; align-items: center; background: #fff; border-radius: 14px; padding: 10px 12px;
+                               color: var(--ink); text-decoration: none; min-height: 68px; }
+    .songs a:hover { box-shadow: 0 0 0 3px var(--pink); }
+    .songs img { width: 52px; height: 52px; border-radius: 8px; flex: none; object-fit: cover; background: #F6DCE8; }
+    .songs li { min-width: 0; }
+    .songs .txt { min-width: 0; flex: 1; }
+    .songs .t { font-weight: 700; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .songs .a { font-size: 14px; color: #5E4D62; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .songs .badge { margin-left: auto; flex: none; background: var(--pink); color: #fff; border-radius: 999px; font-size: 13px;
+                    font-weight: 700; padding: 4px 10px; }
+    .empty { color: #E8D6E3; text-align: center; margin: 6px 0; }
+
+    /* Phones and small windows: one column, side panel underneath */
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .stage { padding: 14px 16px 24px; }
+      .welcome { font-size: 19px; }
+      .bottom { flex-direction: column; align-items: stretch; }
+      .pill { max-width: none; flex: none; }
+      a#play { order: -1; }
+    }
   </style>
   <!-- PostHog analytics (project key is public by design; secrets stay in .env) -->
   <script>
@@ -48,13 +113,57 @@
   </script>
 </head>
 <body>
-<main>
-  <h1><img src="/karry-no-key-logo-pink.svg" alt="Karry-No-Key" width="662" height="213" /></h1>
-  <p class="sub">Sing or hum about 12 seconds of the song stuck in your head.</p>
-  <button id="rec">Tap to sing</button>
-  <div id="status"></div>
-  <div id="results"></div>
-</main>
+<div class="layout">
+  <main class="stage">
+    <div class="topbar">
+      <button class="icon-btn" id="profile-btn" aria-label="Your name" aria-expanded="false" aria-controls="profile-menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7.5" r="4.5"/><path d="M3 21c0-4.4 4-7.5 9-7.5s9 3.1 9 7.5z"/></svg>
+      </button>
+      <button class="icon-btn" id="settings-btn" aria-label="Settings" aria-expanded="false" aria-controls="settings-menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.5 7.5 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.5 7.5 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.5 7.5 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+      </button>
+      <p class="welcome" id="welcome">Welcome! Let&#8217;s sing</p>
+    </div>
+
+    <div class="menu" id="profile-menu" hidden>
+      <form id="name-form">
+        <label for="name-input">What should we call you?</label>
+        <input id="name-input" maxlength="30" autocomplete="given-name" placeholder="Your first name" />
+        <div class="row"><button class="small" type="submit">Save</button></div>
+      </form>
+    </div>
+    <div class="menu" id="settings-menu" hidden>
+      <a href="/find">📍 Where's my Karry-No-Key?</a>
+      <a href="/play">🎮 Finish the Lyric</a>
+      <a id="menu-playlist" href="#" target="_blank" rel="noopener" hidden>🎧 Open Sung It on Spotify</a>
+    </div>
+
+    <div class="centre">
+      <h1><img src="/karry-no-key-logo-pink.svg" alt="Karry-No-Key" width="662" height="213" /></h1>
+      <h2>Name that song</h2>
+      <p class="sub">Sing or hum about 12 seconds of the song stuck in your head.</p>
+      <button id="rec">Tap to sing</button>
+      <div id="status" role="status"></div>
+      <div id="results"></div>
+    </div>
+
+    <div class="bottom">
+      <a class="pill" id="find" href="/find" onclick="window.posthog && posthog.capture('tapped_find_my')">📍 Where&#8217;s my Karry-No-Key?</a>
+      <a class="pill" id="play" href="/play" onclick="window.posthog && posthog.capture('tapped_play')">Play Finish the Lyric</a>
+    </div>
+  </main>
+
+  <aside class="side" aria-label="Your songs">
+    <h2 class="side-h">Recently Sung</h2>
+    <a class="all" id="recent-all" href="#" target="_blank" rel="noopener" hidden>See the whole Sung It playlist →</a>
+    <ol class="songs" id="recent-list"></ol>
+    <p class="empty" id="recent-empty" hidden>No songs yet. Sing one and tap "Add to playlist"!</p>
+    <div id="top-wrap" hidden>
+      <h2 class="side-h second">Top Song</h2>
+      <ol class="songs" id="top-list"></ol>
+    </div>
+  </aside>
+</div>
 
 <script>
   const RECORD_SECONDS = 12;
@@ -194,6 +303,7 @@
     note.textContent = data.message;
     if (data.ok) {
       button.textContent = "Saved ✓";
+      loadRecent();
       track("saved_to_spotify", { title: m.title, artist: m.artist, rank: rank + 1 });
       if (data.playlist_url) {
         const link = document.createElement("a");
@@ -208,6 +318,119 @@
     }
     card.append(note);
   }
+
+  // "Recently Sung" and "Top Song": songs in the Sung It playlist. Song names come from Spotify,
+  // so they're always inserted as plain text, never as HTML.
+  function songCard(song, badge) {
+    const li = document.createElement("li");
+    const ok = /^https:\/\/open\.spotify\.com\//.test(song.url || "");
+    const a = document.createElement(ok ? "a" : "div");
+    if (ok) { a.href = song.url; a.target = "_blank"; a.rel = "noopener"; }
+    else a.className = "nolink";
+    a.addEventListener("click", () => track("clicked_recent_song", { title: song.title, artist: song.artist }));
+    const img = document.createElement("img");
+    img.alt = ""; img.width = 52; img.height = 52;
+    if (/^https:\/\//.test(song.image || "")) img.src = song.image;
+    const txt = document.createElement("div"); txt.className = "txt";
+    const t = document.createElement("div"); t.className = "t"; t.textContent = song.title;
+    const ar = document.createElement("div"); ar.className = "a"; ar.textContent = song.artist;
+    txt.append(t, ar); a.append(img, txt);
+    if (badge) { const b = document.createElement("span"); b.className = "badge"; b.textContent = badge; a.append(b); }
+    li.append(a);
+    return li;
+  }
+
+  async function loadRecent() {
+    let data = { ok: false, songs: [] };
+    try { data = await (await fetch("/recent-songs", { cache: "no-store" })).json(); } catch (e) {}
+    const list = document.getElementById("recent-list");
+    list.textContent = "";
+    for (const song of data.songs || []) list.append(songCard(song));
+    const empty = document.getElementById("recent-empty");
+    empty.textContent = data.ok ? 'No songs yet. Sing one and tap "Add to playlist"!'
+                                : (data.message || "Couldn't load your songs right now.");
+    empty.hidden = (data.songs || []).length > 0;
+
+    const top = data.top_song;
+    document.getElementById("top-wrap").hidden = !top;
+    const topList = document.getElementById("top-list");
+    topList.textContent = "";
+    if (top) topList.append(songCard(top, top.count > 1 ? "Saved " + top.count + "×" : ""));
+
+    const ok = /^https:\/\/open\.spotify\.com\/playlist\//.test(data.playlist_url || "");
+    for (const id of ["recent-all", "menu-playlist"]) {
+      const link = document.getElementById(id);
+      link.hidden = !ok;
+      if (ok) link.href = data.playlist_url;
+    }
+  }
+  loadRecent();
+
+  // Top bar: your name (kept only in this browser) and a small settings menu.
+  const NAME_KEY = "knk-name";
+
+  // A different greeting every visit. {n} becomes " Genny" and {c} becomes ", Genny"
+  // (or nothing at all if you haven't told us your name).
+  const GREETINGS = {
+    any: [
+      "Howdy{n}, we singin\u2019 country today?",
+      "Singgg it{n}, I\u2019m ready to hear it",
+      "Mic check, one two\u2026 is that you{c}?",
+      "Hey{n}! What\u2019s stuck in your head today?",
+      "Hum it, sing it, belt it{c}. I\u2019m listening",
+      "Encore! Welcome back{c}",
+      "Warm up those vocal cords{c} \u{1F3A4}",
+      "Name that tune{c}? Let\u2019s go",
+      "Shower singer or stadium star{c}? Show me",
+      "Got an earworm{c}? Let\u2019s catch it",
+    ],
+    morning: ["Morning{n}, ready to drop some beats?", "Rise and sing{c} \u2600\uFE0F", "Coffee first{c}, or straight to the chorus?"],
+    afternoon: ["Afternoon{n}! Time for a sing-along?", "Lunchtime ballad{c}? I\u2019m all ears"],
+    evening: ["Evening{n}, what\u2019s tonight\u2019s anthem?", "Golden hour{c}. Hit me with a power ballad"],
+    night: ["Late-night karaoke{c}? Keep it down for the neighbours \u{1F319}", "Still up{c}? Sing me your midnight song"],
+  };
+  function pickGreeting(name) {
+    const h = new Date().getHours();
+    const part = h >= 5 && h < 12 ? "morning" : h < 17 ? "afternoon" : h < 22 ? "evening" : "night";
+    const options = GREETINGS.any.concat(GREETINGS[part], GREETINGS[part]);   // time-of-day ones twice as likely
+    let last = "";
+    try { last = localStorage.getItem("knk-last-greeting") || ""; } catch (e) {}
+    let pick = options[Math.floor(Math.random() * options.length)];
+    for (let i = 0; i < 5 && pick === last; i++) pick = options[Math.floor(Math.random() * options.length)];
+    try { localStorage.setItem("knk-last-greeting", pick); } catch (e) {}
+    return pick.replace("{n}", name ? " " + name : "").replace("{c}", name ? ", " + name : "");
+  }
+  function showName() {
+    let name = "";
+    try { name = localStorage.getItem(NAME_KEY) || ""; } catch (e) {}
+    document.getElementById("welcome").textContent = pickGreeting(name);
+    document.getElementById("name-input").value = name;
+  }
+  function toggleMenu(btnId, menuId) {
+    const menu = document.getElementById(menuId);
+    const opening = menu.hidden;
+    for (const [b, m] of [["profile-btn", "profile-menu"], ["settings-btn", "settings-menu"]]) {
+      document.getElementById(m).hidden = true;
+      document.getElementById(b).setAttribute("aria-expanded", "false");
+    }
+    menu.hidden = !opening;
+    document.getElementById(btnId).setAttribute("aria-expanded", String(opening));
+    if (opening && menuId === "profile-menu") document.getElementById("name-input").focus();
+  }
+  document.getElementById("profile-btn").addEventListener("click", () => toggleMenu("profile-btn", "profile-menu"));
+  document.getElementById("settings-btn").addEventListener("click", () => toggleMenu("settings-btn", "settings-menu"));
+  document.getElementById("name-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = document.getElementById("name-input").value.trim().slice(0, 30);
+    try { name ? localStorage.setItem(NAME_KEY, name) : localStorage.removeItem(NAME_KEY); } catch (e) {}
+    showName();
+    toggleMenu("profile-btn", "profile-menu");
+    track("set_name");
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") for (const m of ["profile-menu", "settings-menu"]) document.getElementById(m).hidden = true;
+  });
+  showName();
 
   // Average volume of the recording (0 = silence, 1 = as loud as possible).
   function loudness(samples) {

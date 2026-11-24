@@ -225,4 +225,30 @@ def save_song(env, title, artist, track_id=None):
     uri = _find_track(env, title, artist, track_id)
     # Spotify's 2026 rules: songs are added with POST /playlists/{id}/items.
     _api(env, "POST", f"/playlists/{_playlist_id(env)}/items", {"uris": [uri]})
+    _songs_cache["time"] = 0   # so the "Recently sung" list shows it straight away
     return uri
+
+_songs_cache = {"time": 0, "songs": []}
+
+
+def playlist_songs(env):
+    """The songs in the "Sung It" playlist (title and artist), cached for 5 minutes."""
+    if time.time() - _songs_cache["time"] < 300 and _songs_cache["songs"]:
+        return _songs_cache["songs"]
+    pid = _playlist_id(env)
+    songs, path = [], f"/playlists/{pid}/items?limit=50"
+    while path:
+        page = _api(env, "GET", path)
+        for entry in page.get("items", []):
+            # Spotify's 2026 API calls this "item"; older responses called it "track".
+            t = (entry or {}).get("item") or (entry or {}).get("track") or {}
+            if t.get("name") and t.get("artists"):
+                images = (t.get("album") or {}).get("images") or []
+                songs.append({"title": clean_title(t["name"]), "artist": t["artists"][0]["name"],
+                              "added_at": entry.get("added_at", ""),
+                              "url": (t.get("external_urls") or {}).get("spotify", ""),
+                              "image": images[-1]["url"] if images else ""})
+        nxt = page.get("next")
+        path = nxt.replace("https://api.spotify.com/v1", "") if nxt else None
+    _songs_cache.update(time=time.time(), songs=songs)
+    return songs

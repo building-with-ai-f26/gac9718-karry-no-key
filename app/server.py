@@ -36,6 +36,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
+import game
 import spotify
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -85,7 +86,7 @@ def load_env():
     # Real environment variables win over the file. On Render, the keys live in the service's
     # "Environment" settings (there is no .env file in the cloud).
     for key in ("ACR_HOST", "ACR_ACCESS_KEY", "ACR_ACCESS_SECRET",
-                "SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REFRESH_TOKEN"):
+                "SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REFRESH_TOKEN", "WATCH_KEY"):
         if os.environ.get(key):
             env[key] = os.environ[key]
     return env
@@ -120,6 +121,51 @@ def _under_limit(log, key, limit):
 
 def allowed_watch_action(visitor):
     return _under_limit(_recent_watch_actions, visitor, WATCH_ACTIONS_PER_HOUR)
+
+
+# Finish the Lyric rounds call Spotify and LRCLIB (both free), but limit them anyway.
+GAME_ROUNDS_PER_HOUR = 200
+_recent_rounds = {}
+
+
+def allowed_game_round(visitor):
+    return _under_limit(_recent_rounds, visitor, GAME_ROUNDS_PER_HOUR)
+
+
+# ---------- Find my Karry-No-Key ----------
+# The watch checks in every 20 seconds with its battery and Wi-Fi signal, proving who it is with
+# WATCH_KEY (a secret in .env and in the watch's secrets.h). It also sends a 6-digit code that it
+# shows on its screen: only someone who has seen the watch can see its status or make it ring.
+# Kept in memory for now, so it's empty after a restart until the watch next checks in.
+watch_status = {}      # last_seen, battery, charging, rssi, wifi, code
+ring_requested = False
+FIND_TRIES_PER_HOUR = 30          # per visitor
+FIND_WRONG_CODES_PER_HOUR = 100   # for everyone together, so nobody can guess codes
+_find_tries = {}
+_wrong_codes = []
+ONLINE_SECONDS = 70               # missed three check-ins in a row = offline
+
+
+def code_is_right(visitor, code):
+    """Check a typed code, with limits so a 6-digit code can't be guessed by trying them all."""
+    if not _under_limit(_find_tries, visitor, FIND_TRIES_PER_HOUR):
+        return None
+    now = time.time()
+    with _rate_lock:
+        _wrong_codes[:] = [t for t in _wrong_codes if now - t < 3600]
+        if len(_wrong_codes) >= FIND_WRONG_CODES_PER_HOUR:
+            return None
+    real = watch_status.get("code", "")
+    if real and hmac.compare_digest(str(code).strip(), real):
+        return True
+    with _rate_lock:
+        _wrong_codes.append(now)
+    return False
+
+
+RECENT_LIST_PER_HOUR = 120
+_recent_list_views = {}
+RECENT_SONGS_SHOWN = 8
 
 
 def allowed_to_sing(visitor):
@@ -263,6 +309,8 @@ class Handler(BaseHTTPRequestHandler):
         "/": ("index.html", "text/html; charset=utf-8"),
         "/index.html": ("index.html", "text/html; charset=utf-8"),
         "/karry-no-key-logo-pink.svg": ("karry-no-key-logo-pink.svg", "image/svg+xml"),
+        "/play": ("play.html", "text/html; charset=utf-8"),
+        "/find": ("find.html", "text/html; charset=utf-8"),
     }
 
     def send_html(self, status, message):
@@ -307,10 +355,68 @@ class Handler(BaseHTTPRequestHandler):
         except spotify.SpotifyError as e:
             self.send_html(400, str(e))
 
+    def send_recent_songs(self):
+        """The newest songs in the "Sung It" playlist, newest first, for the home page list."""
+        if not _under_limit(_recent_list_views, self.visitor(), RECENT_LIST_PER_HOUR):
+            self.send_json(429, {"ok": False, "songs": []})
+            return
+        env = load_env()
+        try:
+            songs = spotify.playlist_songs(env)
+        except (spotify.SpotifyError, urllib.error.URLError, KeyError) as e:
+            print("Couldn't read the playlist for the recent list:", e)
+            songs = None
+        url = spotify.playlist_url()
+        if not url:
+            try:
+                spotify._playlist_id(env)   # look the playlist up once, so we know its link
+                url = spotify.playlist_url()
+            except (spotify.SpotifyError, urllib.error.URLError, KeyError) as e:
+                print("Couldn't find the Sung It playlist:", e)
+        url = url if url and url.startswith("https://open.spotify.com/") else None
+        if songs is None:
+            self.send_json(502, {"ok": False, "songs": [], "playlist_url": url,
+                                 "message": "Couldn't load your songs from Spotify right now."})
+            return
+        newest = sorted(songs, key=lambda s: s.get("added_at", ""), reverse=True)[:RECENT_SONGS_SHOWN]
+        # Top song: the one saved most often; if it's a tie, the one saved first.
+        counts = {}
+        for song in sorted(songs, key=lambda s: s.get("added_at", "")):
+            key = (song["title"].lower(), song["artist"].lower())
+            counts.setdefault(key, {**song, "count": 0})["count"] += 1
+        top = max(counts.values(), key=lambda s: s["count"]) if counts else None
+        self.send_json(200, {"ok": True, "songs": newest, "top_song": top, "playlist_url": url})
+
+    def send_game_round(self):
+        """Finish the Lyric: one round from a random song in the "Sung It" playlist."""
+        if not allowed_game_round(self.visitor()):
+            self.send_json(429, {"ok": False, "message": "That's a lot of rounds! Take a break and come back soon."})
+            return
+        try:
+            songs = spotify.playlist_songs(load_env())
+        except (spotify.SpotifyError, urllib.error.URLError, KeyError) as e:
+            print("Couldn't read the playlist for the game:", e)
+            self.send_json(502, {"ok": False, "message": "Couldn't reach Spotify. Try again in a moment."})
+            return
+        if not songs:
+            self.send_json(200, {"ok": False, "message": "Your Sung It playlist is empty. Sing a song first!"})
+            return
+        round_ = game.next_round(songs)
+        if not round_:
+            self.send_json(200, {"ok": False, "message": "Couldn't find lyrics for your songs yet. Sing a few more!"})
+            return
+        self.send_json(200, {"ok": True, **round_})
+
     def do_GET(self):
         url = urlparse(self.path)
         if url.path in ("/spotify/login", "/spotify/callback"):
             self.handle_spotify_pages(url)
+            return
+        if url.path == "/game/round":
+            self.send_game_round()
+            return
+        if url.path == "/recent-songs":
+            self.send_recent_songs()
             return
         if self.path not in self.STATIC_FILES:
             self.send_error(404)
@@ -345,6 +451,77 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def read_body(self, limit=2000):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            length = 0
+        return self.rfile.read(min(max(length, 0), limit)) if length > 0 else b""
+
+    def is_my_watch(self):
+        """True if WATCH_KEY isn't set yet (watch routes stay open), or the request carries it."""
+        key = load_env().get("WATCH_KEY", "")
+        return not key or hmac.compare_digest(self.headers.get("X-Watch-Key", ""), key)
+
+    def watch_checkin(self):
+        """The watch saying "I'm here": battery, signal and its on-screen code. Replies "ring" or "ok"."""
+        global ring_requested
+        key = load_env().get("WATCH_KEY", "")
+        if not key or not hmac.compare_digest(self.headers.get("X-Watch-Key", ""), key):
+            self.send_response(403)
+            self.end_headers()
+            return
+        info = {}
+        for line in self.read_body().decode("ascii", "ignore").splitlines():
+            if "=" in line:
+                k, v = line.split("=", 1)
+                info[k.strip()] = v.strip()[:40]
+        code = info.get("code", "")
+        watch_status.update(
+            last_seen=time.time(),
+            battery=int(info["battery"]) if info.get("battery", "").lstrip("-").isdigit() else -1,
+            charging=info.get("charging") == "1",
+            rssi=int(info["rssi"]) if info.get("rssi", "").lstrip("-").isdigit() else 0,
+            wifi=info.get("wifi", ""),
+            code=code if re.fullmatch(r"\d{6}", code) else watch_status.get("code", ""),
+        )
+        reply = "ring" if ring_requested else "ok"
+        ring_requested = False
+        self.send_text(reply)
+
+    def find_my_watch(self, ring):
+        """The Find my page: show the watch's status, or ask it to ring. Needs the watch's code."""
+        global ring_requested
+        try:
+            code = json.loads(self.read_body() or b"{}").get("code", "")
+        except (ValueError, json.JSONDecodeError):
+            code = ""
+        if not load_env().get("WATCH_KEY"):
+            self.send_json(503, {"ok": False, "message": "Find my isn't set up yet: WATCH_KEY is missing."})
+            return
+        right = code_is_right(self.visitor(), code)
+        if right is None:
+            self.send_json(429, {"ok": False, "message": "Too many tries. Wait a while and try again."})
+            return
+        if not right:
+            self.send_json(403, {"ok": False, "message": "That code doesn't match. Check the code on your watch's home screen."})
+            return
+        seen = watch_status.get("last_seen", 0)
+        online = time.time() - seen < ONLINE_SECONDS
+        if ring:
+            if not online:
+                self.send_json(200, {"ok": False, "message": "Your watch is offline, so it can't ring right now."})
+                return
+            ring_requested = True
+            track("find_my_ring")
+            self.send_json(200, {"ok": True, "message": "Ringing! Your watch will light up within 20 seconds."})
+            return
+        track("find_my_checked", {"online": online})
+        self.send_json(200, {"ok": True, "online": online, "seconds_ago": int(time.time() - seen),
+                             "battery": watch_status.get("battery", -1),
+                             "charging": watch_status.get("charging", False),
+                             "rssi": watch_status.get("rssi", 0), "wifi": watch_status.get("wifi", "")})
 
     def save_watch_match(self):
         """The watch's BOOT button was pressed on a match: save that song to Spotify."""
@@ -399,6 +576,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/save":
             self.save_from_web()
             return
+        # Once WATCH_KEY is set, the watch routes only answer the real watch (it sends the key).
+        if self.path in ("/identify-watch", "/save-watch", "/reject-watch") and not self.is_my_watch():
+            self.send_response(403)
+            self.end_headers()
+            return
         if self.path in ("/save-watch", "/reject-watch") and not allowed_watch_action(self.visitor()):
             self.send_text("error\nToo many taps. Try again in a little while.")
             return
@@ -414,6 +596,12 @@ class Handler(BaseHTTPRequestHandler):
                                            "acr_title": song.get("acr_title", song.get("title", ""))})
             print(f"Not my song: {song.get('title', '?')} by {song.get('artist', '?')}")
             self.send_text("ok")
+            return
+        if self.path == "/watch/checkin":
+            self.watch_checkin()
+            return
+        if self.path in ("/find/status", "/find/ring"):
+            self.find_my_watch(ring=self.path == "/find/ring")
             return
         # /identify is used by the laptop web page; /identify-watch by the Karry-No-Key watch.
         if self.path not in ("/identify", "/identify-watch"):

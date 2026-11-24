@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Where's my Karry-No-Key?</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { --pink: #EE5A93; --pink-dark: #B8336A; --ink: #2A1F2D; --soft: #FFF3F8; --green: #1F8A5B; --grey: #8A7A88; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Fredoka", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+           background: var(--soft); color: var(--ink); display: flex; justify-content: center; padding: 24px 16px; }
+    main { width: 100%; max-width: 440px; text-align: center; }
+    .logo { display: block; width: 100%; max-width: 220px; height: auto; margin: 0 auto 4px; }
+    h1 { margin: 8px 0 6px; font-size: 30px; color: var(--pink-dark); }
+    .sub { margin: 0 0 22px; font-size: 17px; color: #5E4D62; }
+    .card { background: #fff; border-radius: 18px; padding: 22px 20px; box-shadow: 0 2px 12px rgba(0,0,0,.06); text-align: left; }
+    label { font-weight: 700; display: block; margin-bottom: 8px; }
+    input { width: 100%; font-family: inherit; font-size: 28px; letter-spacing: 6px; text-align: center; padding: 12px;
+            border: 2px solid var(--pink); border-radius: 14px; }
+    input:focus-visible { outline: 3px solid var(--pink-dark); outline-offset: 2px; }
+    .hint { font-size: 14px; color: #5E4D62; margin: 8px 0 16px; }
+    .big { border: none; border-radius: 999px; background: var(--pink); color: #fff; font-family: inherit; width: 100%;
+           font-weight: 700; font-size: 20px; padding: 14px 24px; min-height: 56px; cursor: pointer;
+           box-shadow: 0 8px 24px rgba(238,90,147,.35); }
+    .big.ring { background: var(--pink-dark); box-shadow: 0 8px 24px rgba(184,51,106,.35); }
+    .big:disabled { opacity: .5; cursor: default; }
+    button:focus-visible, a:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+    .state { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--grey); flex: none; }
+    .dot.on { background: var(--green); box-shadow: 0 0 0 5px rgba(31,138,91,.18); }
+    .seen { color: #5E4D62; margin-bottom: 18px; }
+    .rows { display: grid; gap: 14px; margin-bottom: 22px; }
+    .row { display: flex; justify-content: space-between; align-items: center; font-size: 17px; }
+    .row b { font-weight: 700; }
+    .bar { width: 120px; height: 14px; border-radius: 7px; background: #F6DCE8; overflow: hidden; margin-left: 10px; }
+    .bar i { display: block; height: 100%; background: var(--green); }
+    .bar i.low { background: var(--pink-dark); }
+    #msg { min-height: 1.4em; margin: 14px 0 0; font-weight: 600; text-align: center; }
+    .ghost { display: inline-block; margin-top: 16px; color: var(--pink-dark); font-weight: 600; text-decoration: none; padding: 10px; }
+    .link-btn { background: none; border: none; color: var(--pink-dark); font-family: inherit; font-weight: 600; font-size: 15px; cursor: pointer; padding: 8px; }
+    [hidden] { display: none !important; }
+  </style>
+    <script>
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="Eh Rh Ph Oh Lh qh init yd bd dd fd Sd wc md xd ad Ed Ad Rd Pd Od Fd capture getExtension gr pd gd calculateEventProperties Ld register register_once register_for_session unregister unregister_for_session zd hd jd getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync Hd identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset Ud shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty qd Td createPersonProfile setInternalOrTestUser Bd Uh zh opt_in_capturing opt_out_capturing Hh has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing $d debug kc Ls getPageViewId captureTraceFeedback captureTraceMetric rd".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+    posthog.init('phc_CHj8esjkwBFXBDRnBq6GFavcuJAyKmhJJ9stAEoG4KNJ', {
+        api_host: 'https://us.i.posthog.com',
+        defaults: '2026-05-30',
+        person_profiles: 'identified_only', // or 'always' to create profiles for anonymous users as well
+    })
+  </script>
+</head>
+<body>
+<main>
+  <a href="/"><img class="logo" src="/karry-no-key-logo-pink.svg" alt="Karry-No-Key home" width="662" height="213" /></a>
+  <h1>Where&#8217;s my Karry&#8209;No&#8209;Key?</h1>
+  <p class="sub">See when your watch was last online, and make it light up so you can find it.</p>
+
+  <section class="card" id="ask">
+    <form id="code-form">
+      <label for="code">Your watch's code</label>
+      <input id="code" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required />
+      <p class="hint">It's the 6-digit "Find my code" at the bottom of your watch's home screen. You only need to type it once on this phone.</p>
+      <button class="big" type="submit">Find my watch</button>
+    </form>
+  </section>
+
+  <section class="card" id="status" hidden>
+    <div class="state"><span class="dot" id="dot"></span><span id="state"></span></div>
+    <div class="seen" id="seen"></div>
+    <div class="rows">
+      <div class="row"><span>Battery</span><span style="display:flex;align-items:center"><b id="battery"></b><span class="bar"><i id="bar"></i></span></span></div>
+      <div class="row"><span>Wi-Fi signal</span><b id="signal"></b></div>
+      <div class="row"><span>Wi-Fi network</span><b id="wifi"></b></div>
+    </div>
+    <button class="big ring" id="ring">Make it ring</button>
+    <div style="text-align:center"><button class="link-btn" id="forget" type="button">Use a different code</button></div>
+  </section>
+
+  <p id="msg" role="status"></p>
+  <a class="ghost" href="/">← Back to Karry-No-Key</a>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let code = "";
+  try { code = localStorage.getItem("knk-find-code") || ""; } catch (e) {}
+  let timer = null;
+
+  function track(event, props) {
+    if (window.posthog) posthog.capture(event, props || {});
+  }
+
+  async function ask(path) {
+    try {
+      const resp = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" },
+                                       body: JSON.stringify({ code }) });
+      return { status: resp.status, ...(await resp.json()) };
+    } catch (e) {
+      return { status: 0, ok: false, message: "Couldn't reach Karry-No-Key. Check your connection." };
+    }
+  }
+
+  function ago(seconds) {
+    if (seconds < 60) return "just now";
+    const m = Math.round(seconds / 60);
+    if (m < 60) return m + (m === 1 ? " minute ago" : " minutes ago");
+    const h = Math.round(m / 60);
+    if (h < 48) return h + (h === 1 ? " hour ago" : " hours ago");
+    return Math.round(h / 24) + " days ago";
+  }
+
+  function signalWords(rssi) {
+    if (!rssi) return "Unknown";
+    if (rssi >= -60) return "Strong";
+    if (rssi >= -72) return "OK";
+    return "Weak (it's far from the router)";
+  }
+
+  async function refresh() {
+    const d = await ask("/find/status");
+    if (!d.ok) {
+      $("msg").textContent = d.message || "Something went wrong.";
+      if (d.status === 403) forget(false);
+      return;
+    }
+    $("ask").hidden = true;
+    $("status").hidden = false;
+    $("msg").textContent = "";
+    $("dot").className = "dot" + (d.online ? " on" : "");
+    $("state").textContent = d.online ? "Online now" : "Offline";
+    $("seen").textContent = d.seconds_ago > 1e8 ? "Hasn't checked in since the server restarted."
+                          : "Last seen " + ago(d.seconds_ago) + ".";
+    const known = d.battery >= 0 && d.battery <= 100;
+    $("battery").textContent = known ? d.battery + "%" + (d.charging ? " ⚡" : "") : "Unknown";
+    $("bar").style.width = known ? d.battery + "%" : "0";
+    $("bar").className = known && d.battery <= 20 ? "low" : "";
+    $("signal").textContent = signalWords(d.rssi);
+    $("wifi").textContent = d.wifi || "Unknown";
+    $("ring").disabled = !d.online;
+  }
+
+  function forget(clearMsg = true) {
+    code = "";
+    try { localStorage.removeItem("knk-find-code"); } catch (e) {}
+    clearInterval(timer);
+    $("status").hidden = true;
+    $("ask").hidden = false;
+    if (clearMsg) $("msg").textContent = "";
+    $("code").value = "";
+    $("code").focus();
+  }
+
+  function start() {
+    track("find_my_opened");
+    refresh();
+    clearInterval(timer);
+    timer = setInterval(refresh, 10000);   // keep it up to date while the page is open
+  }
+
+  $("code-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    code = $("code").value.replace(/\D/g, "");
+    if (code.length !== 6) { $("msg").textContent = "The code has 6 digits."; return; }
+    try { localStorage.setItem("knk-find-code", code); } catch (e) {}
+    start();
+  });
+
+  $("ring").addEventListener("click", async () => {
+    $("ring").disabled = true;
+    const d = await ask("/find/ring");
+    $("msg").textContent = d.message || "";
+    setTimeout(() => { $("ring").disabled = false; }, 5000);
+  });
+
+  $("forget").addEventListener("click", () => forget());
+
+  if (code) start();
+</script>
+</body>
+</html>

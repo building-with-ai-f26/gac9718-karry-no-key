@@ -13,7 +13,7 @@
 - **Run locally:** `python3 app/server.py`, then open http://localhost:8000 in Chrome and allow the mic. Stop with Control + C.
 - **Run deterministic tests:** Not yet. Manual check: sing a known chorus and confirm the right song is in the top 3.
 - **Run model evals:** Not yet (Build 4).
-- **Watch (Waveshare ESP32-S3 2.06" AMOLED):** code in `watch/KarryNoKey_Watch/`. Copy `secrets.example.h` to `secrets.h` (git-ignored) and fill in Wi-Fi name, password and the laptop's address (printed when `app/server.py` starts). In Arduino IDE: esp32 by Espressif board package, board **ESP32S3 Dev Module**, USB CDC On Boot Enabled, Flash 16MB, Partition "16M Flash (3MB APP/9.9MB FATFS)", PSRAM OPI PSRAM; library "GFX Library for Arduino". Laptop app must be running on the same 2.4 GHz Wi-Fi with no VPN. Press BOOT on the watch, sing 12 seconds; the watch posts the WAV to `/identify-watch` and shows the top match. Mics are on the ES7210 chip (I2C 0x40).
+- **Watch (Waveshare ESP32-S3 2.06" AMOLED):** code in `watch/KarryNoKey_Watch/`. Copy `secrets.example.h` to `secrets.h` (git-ignored) and fill in the Wi-Fi name and password (2.4 GHz only) and `WATCH_KEY` (same value as in `.env` and Render). The watch talks to the live site over https by default (checking the certificate with the ESP32's built-in trusted list); set `SERVER_URL` in `secrets.h` to test against a laptop. In Arduino IDE: esp32 by Espressif board package 3.3.13+, board **ESP32S3 Dev Module**, USB CDC On Boot Enabled, Flash 16MB, Partition "16M Flash (3MB APP/9.9MB FATFS)", PSRAM OPI PSRAM; library "GFX Library for Arduino". Tap "Tap to sing", sing 12 seconds; the watch posts the WAV to `/identify-watch` with its `X-Watch-Key` header. Every 20 seconds on the home screen it checks in at `/watch/checkin` (Find my). Mics are on the ES7210 chip (I2C 0x40); battery on the AXP2101 (I2C 0x34).
 
 ## 2b. Shipping (deploying to Render)
 The app is deployed as a Render **Web Service** from this GitHub repo. Live URL: https://karry-no-key.onrender.com
@@ -21,7 +21,7 @@ The app is deployed as a Render **Web Service** from this GitHub repo. Live URL:
 **One-time setup**
 1. Sign in at render.com with GitHub. New → **Web Service** → **Public Git Repository** → paste `https://github.com/building-with-ai-f26/gac9718-karry-no-key` → Connect.
 2. Settings: Name `karry-no-key` · Language **Python 3** · Branch `main` · Root Directory blank · Build Command `pip install -r requirements.txt` · Start Command `python3 app/server.py` · Instance Type **Free**.
-3. Environment Variables (never commit these): `ACR_HOST`, `ACR_ACCESS_KEY`, `ACR_ACCESS_SECRET`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`. Easiest: "Add from .env" and paste the contents of your local `.env` (run the app locally and connect Spotify first so `.env` has `SPOTIFY_REFRESH_TOKEN`).
+3. Environment Variables (never commit these): `ACR_HOST`, `ACR_ACCESS_KEY`, `ACR_ACCESS_SECRET`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`, `WATCH_KEY` (shared with the watch; turns on Find my and locks the watch routes). Easiest: "Add from .env" and paste the contents of your local `.env` (run the app locally and connect Spotify first so `.env` has `SPOTIFY_REFRESH_TOKEN`).
 4. Deploy. Render sets `PORT` and `RENDER` automatically; `app/server.py` reads both.
 
 **Shipping a change (the agent follows these steps every time)**
