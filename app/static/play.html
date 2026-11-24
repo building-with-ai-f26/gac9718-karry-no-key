@@ -39,6 +39,7 @@
     #feedback.bad { color: var(--pink-dark); }
     .score { font-size: 64px; font-weight: 700; color: var(--pink); margin: 6px 0 0; }
     .verdict { font-size: 24px; font-weight: 700; margin: 4px 0 20px; }
+    .earned { margin: -10px 0 20px; font-size: 19px; font-weight: 700; color: var(--pink-dark); }
     #status { margin-top: 18px; font-weight: 600; min-height: 1.4em; }
     [hidden] { display: none !important; }
   </style>
@@ -75,6 +76,7 @@
     <h1>You scored</h1>
     <p class="score" id="final"></p>
     <p class="verdict" id="verdict"></p>
+    <p class="earned" id="earned"></p>
     <button class="big" id="again">Play again</button><br />
     <a class="ghost" href="/">← Back to Tap to sing</a>
   </section>
@@ -84,6 +86,17 @@
   const ROUNDS = 5;
   const $ = (id) => document.getElementById(id);
   let roundNo = 0, score = 0, seen = new Set(), upcoming = null;
+
+  // Karry Points from games are kept on this device (shown on the home page with your song points).
+  const POINTS_PER_LYRIC = 10, PERFECT_BONUS = 50;
+  let earned = 0;
+  function addPoints(n) {
+    earned += n;
+    try {
+      const now = parseInt(localStorage.getItem("knk-game-points") || "0", 10) || 0;
+      localStorage.setItem("knk-game-points", String(now + n));
+    } catch (e) {}
+  }
 
   function track(event, props) {
     if (window.posthog) posthog.capture(event, props || {});
@@ -119,7 +132,7 @@
   async function startGame() {
     $("play").disabled = true;
     $("status").textContent = "Finding your songs…";
-    roundNo = 0; score = 0; seen = new Set();
+    roundNo = 0; score = 0; seen = new Set(); earned = 0;
     try {
       upcoming = await fetchRound();
     } catch (e) {
@@ -163,14 +176,14 @@
 
   function answer(r, word, button) {
     const right = word.toLowerCase() === r.answer.toLowerCase();
-    if (right) score++;
+    if (right) { score++; addPoints(POINTS_PER_LYRIC); }
     for (const b of $("choices").querySelectorAll("button")) {
       b.disabled = true;
       if (b.textContent.toLowerCase() === r.answer.toLowerCase()) b.classList.add("right");
       else if (b === button) b.classList.add("wrong");
     }
     drawLine(r, r.answer);
-    $("feedback").textContent = right ? "Correct! +1" : "Not quite. It was \u201c" + r.answer + "\u201d";
+    $("feedback").textContent = right ? "Correct! +" + POINTS_PER_LYRIC + " Karry Points" : "Not quite. It was \u201c" + r.answer + "\u201d";
     $("feedback").className = right ? "good" : "bad";
     $("progress").textContent = "Round " + roundNo + " of " + ROUNDS + " · Score " + score;
     track("game_answered", { correct: right, round: roundNo, title: r.title, artist: r.artist });
@@ -187,7 +200,11 @@
     $("final").textContent = score + " / " + roundNo;
     $("verdict").textContent = score === roundNo && roundNo > 0 ? "Lyric legend! 🎤"
       : score >= Math.ceil(roundNo * 0.6) ? "So close! Nearly a legend." : "Keep singing! 🎶";
-    track("game_finished", { score: score, rounds: roundNo });
+    if (score === roundNo && roundNo > 0) addPoints(PERFECT_BONUS);
+    $("earned").textContent = earned > 0
+      ? "+" + earned + " Karry Points" + (score === roundNo && roundNo > 0 ? " (including a " + PERFECT_BONUS + "-point perfect bonus!)" : "")
+      : "No points this time. Have another go!";
+    track("game_finished", { score: score, rounds: roundNo, points: earned });
     $("again").focus();
   }
 

@@ -311,6 +311,7 @@ class Handler(BaseHTTPRequestHandler):
         "/karry-no-key-logo-pink.svg": ("karry-no-key-logo-pink.svg", "image/svg+xml"),
         "/play": ("play.html", "text/html; charset=utf-8"),
         "/find": ("find.html", "text/html; charset=utf-8"),
+        "/beat": ("beat.html", "text/html; charset=utf-8"),
     }
 
     def send_html(self, status, message):
@@ -385,7 +386,8 @@ class Handler(BaseHTTPRequestHandler):
             key = (song["title"].lower(), song["artist"].lower())
             counts.setdefault(key, {**song, "count": 0})["count"] += 1
         top = max(counts.values(), key=lambda s: s["count"]) if counts else None
-        self.send_json(200, {"ok": True, "songs": newest, "top_song": top, "playlist_url": url})
+        self.send_json(200, {"ok": True, "songs": newest, "top_song": top, "song_count": len(songs),
+                             "playlist_url": url})
 
     def send_game_round(self):
         """Finish the Lyric: one round from a random song in the "Sung It" playlist."""

@@ -562,13 +562,26 @@ void setup() {
 
   // Wi-Fi
   showScreen("Karry-No-Key", String("Joining Wi-Fi: ") + WIFI_NAME);
+  Serial.printf("Joining Wi-Fi: %s\n", WIFI_NAME);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
   for (int i = 0; i < 40 && WiFi.status() != WL_CONNECTED; i++) delay(500);
   if (WiFi.status() != WL_CONNECTED) {
-    showScreen("No Wi-Fi", String("Couldn't join ") + WIFI_NAME + ". Check the name and password in secrets.h, then upload again.");
+    // Show which networks the watch CAN see: if yours isn't listed, it's on 5 GHz or out of range;
+    // if it's listed with a slightly different name, copy that name into secrets.h exactly.
+    Serial.printf("Couldn't join (Wi-Fi status %d). Networks the watch can see:\n", WiFi.status());
+    WiFi.disconnect();
+    int found = WiFi.scanNetworks();
+    String seen;
+    for (int i = 0; i < found && i < 8; i++) {
+      Serial.printf("  \"%s\"  signal %d  channel %d\n", WiFi.SSID(i).c_str(), WiFi.RSSI(i), WiFi.channel(i));
+      if (i < 4) seen += (seen.length() ? ", " : "") + WiFi.SSID(i);
+    }
+    if (found <= 0) Serial.println("  (none)");
+    showScreen("No Wi-Fi", String("Couldn't join ") + WIFI_NAME + ". I can see: " + (seen.length() ? seen : String("nothing")));
     return;
   }
+  Serial.println("Wi-Fi joined");
   Serial.print("Watch Wi-Fi address: ");
   Serial.println(WiFi.localIP());
 

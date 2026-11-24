@@ -8,45 +8,66 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
-    :root { --pink: #EE5A93; --pink-dark: #B8336A; --ink: #2A1F2D; --soft: #FFF3F8; --plum: #2A1F2D; --plum-2: #3A2B3F; }
+    /* Brand: pink #EE5A93 and Fredoka (see the brand guide), with plum ink #2A1F2D and soft pink. */
+    :root { --pink: #EE5A93; --pink-dark: #B8336A; --pink-light: #FFB3CF; --ink: #2A1F2D; --soft: #FFF3F8; --plum: #2A1F2D; }
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
-    html, body { height: 100%; }
     body { margin: 0; font-family: "Fredoka", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
            background: var(--soft); color: var(--ink); }
-    button:focus-visible, a:focus-visible { outline: 3px solid var(--pink-dark); outline-offset: 3px; }
+    button:focus-visible, a:focus-visible { outline: 3px solid var(--pink-light); outline-offset: 3px; }
 
-    /* Two panels: the singing area, and a dark side panel with your songs */
-    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; min-height: 100vh; }
-    .stage { position: relative; display: flex; flex-direction: column; padding: 20px 32px 28px; min-width: 0; }
-    .side { background: var(--plum); color: #fff; padding: 28px 22px; }
+    /* Three columns: your account and points | singing | your songs */
+    .layout { display: grid; grid-template-columns: 270px minmax(0, 1fr) 360px; min-height: 100vh; }
 
-    /* Top bar */
-    .topbar { display: flex; align-items: center; gap: 6px; }
-    .icon-btn { width: 44px; height: 44px; border: none; border-radius: 50%; background: transparent; color: var(--ink);
+    /* ---- Left: account, Karry Points, shortcuts ---- */
+    .nav { background: var(--plum); color: #fff; padding: 22px 18px; display: flex; flex-direction: column; gap: 22px; position: relative; }
+    .nav-btn { display: flex; align-items: center; gap: 12px; background: none; border: none; color: #fff; font-family: inherit;
+               font-size: 21px; font-weight: 600; cursor: pointer; padding: 6px; border-radius: 12px; text-align: left; }
+    .nav-btn:hover { background: rgba(255,255,255,.08); }
+    .nav-btn svg { width: 38px; height: 38px; fill: currentColor; flex: none; }
+    .points { text-align: center; }
+    .points-label { display: inline-block; background: var(--pink); color: #fff; border-radius: 999px; padding: 10px 20px;
+                    font-size: 18px; font-weight: 700; line-height: 1.15; box-shadow: 0 6px 18px rgba(238,90,147,.35); }
+    .points-total { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px;
+                    font-size: 44px; font-weight: 700; letter-spacing: .5px; }
+    .points-total svg { width: 40px; height: 40px; flex: none; }
+    .points-how { font-size: 13px; color: #D9C7D6; margin: 4px 0 0; line-height: 1.4; }
+    .points-pop { display: inline-block; color: var(--pink-light); font-weight: 700; font-size: 18px; animation: pop 1.6s ease-out forwards; }
+    @keyframes pop { 0% { opacity: 0; transform: translateY(8px); } 20% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
+    .nav-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 14px; }
+    a#find { display: flex; align-items: center; justify-content: center; gap: 6px; background: #fff; color: var(--pink-dark);
+             border-radius: 999px; padding: 12px 12px; font-weight: 700; font-size: 15px; text-decoration: none; min-height: 48px; white-space: nowrap; }
+    a#find:hover { background: #FFE6F0; }
+    .nav-icons { display: flex; justify-content: space-between; }
+    .icon-btn { width: 52px; height: 52px; border: none; border-radius: 14px; background: transparent; color: #fff;
                 display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
-    .icon-btn:hover { background: #F6DCE8; }
-    .icon-btn svg { width: 28px; height: 28px; fill: currentColor; }
-    .welcome { margin: 0 0 0 8px; font-size: 22px; font-weight: 700; }
-    .menu { position: absolute; top: 70px; left: 24px; z-index: 20; background: #fff; border-radius: 16px; padding: 16px;
-            width: 280px; box-shadow: 0 10px 30px rgba(42,31,45,.18); }
-    .menu label { display: block; font-weight: 700; margin-bottom: 6px; }
+    .icon-btn:hover { background: rgba(255,255,255,.08); }
+    .icon-btn svg { width: 34px; height: 34px; fill: currentColor; }
+    .menu { position: absolute; left: 16px; z-index: 20; background: #fff; color: var(--ink); border-radius: 16px; padding: 16px;
+            width: 280px; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+    #profile-menu { top: 76px; }
+    #settings-menu, #shop-menu { bottom: 84px; }
+    .menu label, .menu h3 { display: block; font-weight: 700; margin: 0 0 6px; font-size: 17px; }
+    .menu p { margin: 0; color: #5E4D62; line-height: 1.4; }
     .menu input { width: 100%; font-family: inherit; font-size: 17px; padding: 10px 12px; border: 2px solid var(--pink); border-radius: 12px; }
     .menu .row { display: flex; gap: 8px; margin-top: 10px; }
     .menu a { display: block; padding: 10px 4px; color: var(--pink-dark); font-weight: 600; text-decoration: none; }
     .menu .small { border: none; border-radius: 999px; background: var(--pink); color: #fff; font-family: inherit;
                    font-weight: 700; font-size: 15px; padding: 10px 16px; cursor: pointer; }
 
-    /* The singing area */
-    .centre { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 18px 0 30px; }
-    .centre h1 { margin: 6px 0 22px; }
-    .centre h1 img { display: block; width: 100%; max-width: 440px; height: auto; margin: 0 auto; }
-    .centre h2 { margin: 0 0 6px; font-size: 22px; }
+    /* ---- Middle: singing ---- */
+    .stage { display: flex; flex-direction: column; padding: 24px 32px 28px; min-width: 0; }
+    .welcome { margin: 0; font-size: 26px; font-weight: 700; min-height: 1.3em; }
+    .centre { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 18px 0 30px; }
+    .centre h1 { margin: 0 0 18px; }
+    .centre h1 img { display: block; width: 100%; max-width: 560px; height: auto; margin: 0 auto; }
     .sub { margin: 0 0 26px; font-size: 18px; color: #5E4D62; max-width: 420px; }
-    button#rec { width: 200px; height: 200px; border-radius: 50%; border: none; background: var(--pink);
-                 color: #fff; font-family: inherit; font-size: 24px; font-weight: 700; cursor: pointer;
-                 box-shadow: 0 12px 34px rgba(238,90,147,.42); }
-    button#rec:disabled { opacity: .5; cursor: default; }
+    button#rec { width: 210px; height: 210px; border-radius: 50%; border: none; background: var(--pink);
+                 color: #fff; font-family: inherit; font-size: 25px; font-weight: 700; cursor: pointer;
+                 box-shadow: 0 14px 36px rgba(238,90,147,.42); transition: transform .15s; }
+    button#rec:hover { transform: scale(1.03); }
+    button#rec:focus-visible { outline: 3px solid var(--pink-dark); outline-offset: 5px; }
+    button#rec:disabled { opacity: .5; cursor: default; transform: none; }
     button#rec.recording { animation: pulse 1s infinite; }
     @keyframes pulse { 50% { transform: scale(1.06); } }
     #status { margin: 20px 0 6px; min-height: 1.4em; font-weight: 600; }
@@ -61,45 +82,89 @@
     .card button.save { border: none; border-radius: 999px; background: var(--pink); color: #fff;
                         font-family: inherit; font-weight: 700; font-size: 15px; padding: 10px 16px; min-height: 44px; cursor: pointer; }
     .card button.save:disabled { opacity: .6; cursor: default; }
+    .card button.save:focus-visible { outline: 3px solid var(--pink-dark); outline-offset: 2px; }
     .saved-note { margin: 8px 0 0; font-weight: 600; color: var(--pink-dark); }
+    .games { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .game { display: flex; align-items: center; justify-content: center; min-height: 66px; padding: 14px 20px; border-radius: 999px;
+            background: var(--pink); color: #fff; font-weight: 700; font-size: 20px; text-decoration: none; text-align: center;
+            box-shadow: 0 10px 26px rgba(238,90,147,.35); }
+    .game:hover { background: #E24C86; }
+    .game:focus-visible { outline: 3px solid var(--pink-dark); outline-offset: 3px; }
+    .game small { display: block; font-size: 13px; font-weight: 600; opacity: .85; }
 
-    /* The two buttons along the bottom */
-    .bottom { display: flex; gap: 18px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
-    .pill { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 64px; padding: 14px 30px;
-            border-radius: 999px; font-weight: 700; font-size: 20px; text-decoration: none; flex: 1 1 260px; max-width: 420px; }
-    a#find { background: #fff; color: var(--pink-dark); border: 3px solid var(--pink); }
-    a#find:hover { background: #FFE6F0; }
-    a#play { background: var(--pink); color: #fff; box-shadow: 0 10px 26px rgba(238,90,147,.38); }
-    a#play:hover { background: #E24C86; }
-
-    /* Side panel: Recently sung and Top song */
-    /* Section titles: big pink words with a short underline, so they read as titles, not buttons */
+    /* ---- Right: your songs ---- */
+    .side { background: var(--plum); color: #fff; padding: 28px 22px; }
     .side-h { color: var(--pink); font-size: 30px; font-weight: 700; margin: 0 0 4px; line-height: 1.2; }
     .side-h::after { content: ""; display: block; width: 44px; height: 4px; border-radius: 2px; background: var(--pink); margin-top: 8px; }
     .side-h.second { margin-top: 34px; margin-bottom: 14px; }
-    .all { display: inline-block; color: #FFB3CF; font-weight: 600; text-decoration: none; padding: 6px 0 14px; }
+    .all { display: inline-block; color: var(--pink-light); font-weight: 600; text-decoration: none; padding: 6px 0 14px; }
     .all:hover { color: #fff; }
     .songs { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+    .songs li { min-width: 0; }
     .songs a, .songs .nolink { display: flex; gap: 12px; align-items: center; background: #fff; border-radius: 14px; padding: 10px 12px;
                                color: var(--ink); text-decoration: none; min-height: 68px; }
     .songs a:hover { box-shadow: 0 0 0 3px var(--pink); }
     .songs img { width: 52px; height: 52px; border-radius: 8px; flex: none; object-fit: cover; background: #F6DCE8; }
-    .songs li { min-width: 0; }
     .songs .txt { min-width: 0; flex: 1; }
     .songs .t { font-weight: 700; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .songs .a { font-size: 14px; color: #5E4D62; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .songs .badge { margin-left: auto; flex: none; background: var(--pink); color: #fff; border-radius: 999px; font-size: 13px;
                     font-weight: 700; padding: 4px 10px; }
-    .empty { color: #E8D6E3; text-align: center; margin: 6px 0; }
+    .empty { color: #E8D6E3; margin: 6px 0; }
 
-    /* Phones and small windows: one column, side panel underneath */
-    @media (max-width: 900px) {
+    /* ---- Laptops and bigger: everything fits on one screen, no page scrolling.
+       If a column has more than fits (lots of results or songs), only that column scrolls. ---- */
+    @media (min-width: 1001px) {
+      .layout { height: 100vh; min-height: 0; }
+      .nav, .stage, .side { overflow-y: auto; }
+      .stage { padding: 18px 28px 20px; }
+      .centre { padding: 8px 0 14px; justify-content: center; }
+      .centre h1 { margin-bottom: 1.5vh; }
+      .centre h1 img { width: auto; max-width: 100%; max-height: 26vh; }
+      .sub { margin-bottom: 2.5vh; }
+      button#rec { width: clamp(140px, 25vh, 210px); height: clamp(140px, 25vh, 210px); font-size: clamp(20px, 2.8vh, 25px); }
+      .game { min-height: clamp(52px, 7.5vh, 66px); }
+    }
+    @media (min-width: 1001px) and (max-width: 1280px) {
+      .layout { grid-template-columns: 230px minmax(0, 1fr) 300px; }
+      .side-h { font-size: 26px; }
+      .game { font-size: 18px; }
+      a#find { font-size: 13px; padding: 12px 8px; }
+    }
+    @media (min-width: 1001px) and (max-height: 640px) {
+      .points-how { display: none; }
+      .welcome { font-size: 22px; }
+    }
+
+    /* ---- Small windows: songs move under the singing area ---- */
+    @media (max-width: 1000px) {
+      .layout { grid-template-columns: 250px minmax(0, 1fr); }
+      .nav { grid-row: span 2; }
+      .side { grid-column: 2; }
+      a#find { font-size: 14px; }
+    }
+    /* ---- Phones: a compact bar on top, then singing, games, songs ---- */
+    @media (max-width: 760px) {
       .layout { grid-template-columns: 1fr; }
-      .stage { padding: 14px 16px 24px; }
-      .welcome { font-size: 19px; }
-      .bottom { flex-direction: column; align-items: stretch; }
-      .pill { max-width: none; flex: none; }
-      a#play { order: -1; }
+      .side { grid-column: auto; }
+      .nav { grid-row: auto; }
+      .nav { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; }
+      .nav-btn { font-size: 17px; }
+      .nav-btn svg { width: 30px; height: 30px; }
+      .points { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+      .points-label { padding: 6px 12px; font-size: 14px; }
+      .points-total { margin: 0; font-size: 26px; }
+      .points-total svg { width: 24px; height: 24px; }
+      .points-how { display: none; }
+      .nav-bottom { margin: 0; flex-direction: row; width: 100%; align-items: center; }
+      a#find { flex: 1; font-size: 15px; }
+      .nav-icons { gap: 4px; }
+      .menu { left: 12px; right: 12px; width: auto; }
+      #profile-menu { top: 64px; }
+      #settings-menu, #shop-menu { top: 118px; bottom: auto; }
+      .stage { padding: 16px 16px 24px; }
+      .welcome { font-size: 20px; text-align: center; }
+      .games { grid-template-columns: 1fr; }
     }
   </style>
   <!-- PostHog analytics (project key is public by design; secrets stay in .env) -->
@@ -114,17 +179,11 @@
 </head>
 <body>
 <div class="layout">
-  <main class="stage">
-    <div class="topbar">
-      <button class="icon-btn" id="profile-btn" aria-label="Your name" aria-expanded="false" aria-controls="profile-menu">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7.5" r="4.5"/><path d="M3 21c0-4.4 4-7.5 9-7.5s9 3.1 9 7.5z"/></svg>
-      </button>
-      <button class="icon-btn" id="settings-btn" aria-label="Settings" aria-expanded="false" aria-controls="settings-menu">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.5 7.5 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.5 7.5 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.5 7.5 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
-      </button>
-      <p class="welcome" id="welcome">Welcome! Let&#8217;s sing</p>
-    </div>
-
+  <nav class="nav" aria-label="Your account">
+    <button class="nav-btn" id="profile-btn" aria-expanded="false" aria-controls="profile-menu">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7.5" r="4.5"/><path d="M3 21c0-4.4 4-7.5 9-7.5s9 3.1 9 7.5z"/></svg>
+      <span>My Account</span>
+    </button>
     <div class="menu" id="profile-menu" hidden>
       <form id="name-form">
         <label for="name-input">What should we call you?</label>
@@ -132,24 +191,51 @@
         <div class="row"><button class="small" type="submit">Save</button></div>
       </form>
     </div>
-    <div class="menu" id="settings-menu" hidden>
-      <a href="/find">📍 Where's my Karry-No-Key?</a>
-      <a href="/play">🎮 Finish the Lyric</a>
-      <a id="menu-playlist" href="#" target="_blank" rel="noopener" hidden>🎧 Open Sung It on Spotify</a>
+
+    <section class="points" aria-live="polite">
+      <div class="points-label">My Karry Points</div>
+      <div class="points-total"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#EE5A93" d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z"/><path fill="#FFB3CF" d="M19.5 1l.9 1.8 2 .3-1.4 1.4.3 2-1.8-.9-1.8.9.3-2L16.6 3l2-.3z"/></svg><span id="points">0</span></div>
+      <p class="points-how">+100 for every song you sing and save, +10 for every lyric you finish.</p>
+      <span id="points-pop"></span>
+    </section>
+
+    <div class="nav-bottom">
+      <a id="find" href="/find" onclick="window.posthog && posthog.capture('tapped_find_my')">📍 Where&#8217;s my Karry&#8209;No&#8209;Key?</a>
+      <div class="nav-icons">
+        <button class="icon-btn" id="settings-btn" aria-label="Settings" aria-expanded="false" aria-controls="settings-menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.5 7.5 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.5 7.5 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.5 7.5 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+        </button>
+        <button class="icon-btn" id="shop-btn" aria-label="Karry Shop" aria-expanded="false" aria-controls="shop-menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1.5 3h3.3l2.6 11.2h11.3l2.3-8.2H6.2l-.5-2H23l-3.4 12.2H5.8L3.2 5H1.5z"/><circle cx="8.5" cy="19.5" r="1.8"/><circle cx="17.5" cy="19.5" r="1.8"/></svg>
+        </button>
+      </div>
     </div>
+    <div class="menu" id="settings-menu" hidden>
+      <h3>Settings</h3>
+      <a href="/find">📍 Where's my Karry-No-Key?</a>
+      <a id="menu-playlist" href="#" target="_blank" rel="noopener" hidden>🎧 Open Sung It on Spotify</a>
+      <a href="#" id="edit-name">✏️ Change my name</a>
+    </div>
+    <div class="menu" id="shop-menu" hidden>
+      <h3>Karry Shop: coming soon</h3>
+      <p>Soon you&#8217;ll be able to spend your Karry Points on rewards. Keep singing to stock up!</p>
+    </div>
+  </nav>
+
+  <main class="stage">
+    <p class="welcome" id="welcome">Welcome! Let&#8217;s sing</p>
 
     <div class="centre">
       <h1><img src="/karry-no-key-logo-pink.svg" alt="Karry-No-Key" width="662" height="213" /></h1>
-      <h2>Name that song</h2>
       <p class="sub">Sing or hum about 12 seconds of the song stuck in your head.</p>
       <button id="rec">Tap to sing</button>
       <div id="status" role="status"></div>
       <div id="results"></div>
     </div>
 
-    <div class="bottom">
-      <a class="pill" id="find" href="/find" onclick="window.posthog && posthog.capture('tapped_find_my')">📍 Where&#8217;s my Karry-No-Key?</a>
-      <a class="pill" id="play" href="/play" onclick="window.posthog && posthog.capture('tapped_play')">Play Finish the Lyric</a>
+    <div class="games">
+      <a class="game" href="/beat" onclick="window.posthog && posthog.capture('tapped_beat_intro')"><span>Play Beat the Intro<small>Coming soon</small></span></a>
+      <a class="game" href="/play" onclick="window.posthog && posthog.capture('tapped_play')">Play Finish the Lyric</a>
     </div>
   </main>
 
@@ -340,17 +426,41 @@
     return li;
   }
 
+  // Karry Points: +100 for every song in your Sung It playlist (from the web or the watch), plus
+  // the points you've won in games on this device. Until sign-in arrives, the playlist is shared,
+  // so the song points are shared too.
+  let lastPoints = null;
+  const SONGS_SHOWN = 3;
+  function gamePoints() {
+    try { return parseInt(localStorage.getItem("knk-game-points") || "0", 10) || 0; } catch (e) { return 0; }
+  }
+  function showPoints(songCount) {
+    const total = (songCount || 0) * 100 + gamePoints();
+    document.getElementById("points").textContent = total.toLocaleString();
+    if (lastPoints !== null && total > lastPoints) {
+      const pop = document.getElementById("points-pop");
+      pop.className = "";
+      void pop.offsetWidth;   // restart the little animation
+      pop.className = "points-pop";
+      pop.textContent = "+" + (total - lastPoints) + " points!";
+      track("earned_points", { points: total - lastPoints, total: total });
+    }
+    lastPoints = total;
+  }
+
   async function loadRecent() {
     let data = { ok: false, songs: [] };
     try { data = await (await fetch("/recent-songs", { cache: "no-store" })).json(); } catch (e) {}
     const list = document.getElementById("recent-list");
     list.textContent = "";
-    for (const song of data.songs || []) list.append(songCard(song));
+    // The newest few, so Top Song stays on screen underneath (the full list is one tap away on Spotify).
+    for (const song of (data.songs || []).slice(0, SONGS_SHOWN)) list.append(songCard(song));
     const empty = document.getElementById("recent-empty");
     empty.textContent = data.ok ? 'No songs yet. Sing one and tap "Add to playlist"!'
                                 : (data.message || "Couldn't load your songs right now.");
     empty.hidden = (data.songs || []).length > 0;
 
+    if (data.ok) showPoints(data.song_count);
     const top = data.top_song;
     document.getElementById("top-wrap").hidden = !top;
     const topList = document.getElementById("top-list");
@@ -404,12 +514,13 @@
     let name = "";
     try { name = localStorage.getItem(NAME_KEY) || ""; } catch (e) {}
     document.getElementById("welcome").textContent = pickGreeting(name);
+    document.querySelector("#profile-btn span").textContent = name ? name + "\u2019s Account" : "My Account";
     document.getElementById("name-input").value = name;
   }
   function toggleMenu(btnId, menuId) {
     const menu = document.getElementById(menuId);
     const opening = menu.hidden;
-    for (const [b, m] of [["profile-btn", "profile-menu"], ["settings-btn", "settings-menu"]]) {
+    for (const [b, m] of [["profile-btn", "profile-menu"], ["settings-btn", "settings-menu"], ["shop-btn", "shop-menu"]]) {
       document.getElementById(m).hidden = true;
       document.getElementById(b).setAttribute("aria-expanded", "false");
     }
@@ -419,6 +530,8 @@
   }
   document.getElementById("profile-btn").addEventListener("click", () => toggleMenu("profile-btn", "profile-menu"));
   document.getElementById("settings-btn").addEventListener("click", () => toggleMenu("settings-btn", "settings-menu"));
+  document.getElementById("shop-btn").addEventListener("click", () => { toggleMenu("shop-btn", "shop-menu"); track("tapped_shop"); });
+  document.getElementById("edit-name").addEventListener("click", (e) => { e.preventDefault(); toggleMenu("profile-btn", "profile-menu"); });
   document.getElementById("name-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const name = document.getElementById("name-input").value.trim().slice(0, 30);
@@ -428,7 +541,7 @@
     track("set_name");
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") for (const m of ["profile-menu", "settings-menu"]) document.getElementById(m).hidden = true;
+    if (e.key === "Escape") for (const m of ["profile-menu", "settings-menu", "shop-menu"]) document.getElementById(m).hidden = true;
   });
   showName();
 
