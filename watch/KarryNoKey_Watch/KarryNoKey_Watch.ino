@@ -34,9 +34,8 @@
 #endif
 
 // ---------- Settings ----------
-const int SHORT_SING_SECONDS = 12;                   // the two lengths you can pick on the home screen
+const int SHORT_SING_SECONDS = 12;                   // the two lengths you can pick after "Tap to sing"
 const int LONG_SING_SECONDS = 30;
-int singSeconds = SHORT_SING_SECONDS;                  // the one currently picked
 const int SAMPLE_RATE = 16000;                        // 16,000 sound samples a second: plenty for a voice
 const uint8_t MIC_GAIN = 10;                          // microphone boost: 10 = 30 dB (range 0-14)
 const int BOOT_BUTTON = 0;                            // the watch's BOOT button
@@ -51,10 +50,10 @@ String findCode;
 // ---------- On-screen buttons (position and size in pixels; the screen is 410 x 502) ----------
 // Defined up here, before any functions, so Arduino's automatic setup can see them.
 struct Button { int x, y, w, h; };
-const Button SHORT_BUTTON  = { 55, 168, 145, 56 };    // "12 sec"
-const Button LONG_BUTTON   = { 210, 168, 145, 56 };   // "30 sec"
-const Button SING_BUTTON   = { 55, 245, 300, 96 };
-const Button PLAY_BUTTON   = { 55, 358, 300, 76 };
+const Button SING_BUTTON   = { 35, 150, 340, 150 };   // home screen: the main, biggest button
+const Button PLAY_BUTTON   = { 55, 330, 300, 80 };
+const Button SHORT_BUTTON  = { 20, 220, 180, 130 };   // "How long will you sing?" screen, side by side
+const Button LONG_BUTTON   = { 210, 220, 180, 130 };
 const Button RESTART_BUTTON = { 30, 400, 170, 64 };   // shown while you sing
 const Button STOP_BUTTON    = { 210, 400, 170, 64 };
 const Button ADD_BUTTON    = { 30, 330, 350, 70 };
@@ -268,8 +267,7 @@ bool readTouch(int &x, int &y) {
 // ---------- Buttons on screen ----------
 
 // filled = white button with pink writing; otherwise a white outline with white writing.
-void drawButton(const Button &b, const String &label, bool filled) {
-  const GFXfont *font = &FredokaSemi28;
+void drawButton(const Button &b, const String &label, bool filled, const GFXfont *font = &FredokaSemi28) {
   if (filled) gfx->fillRoundRect(b.x, b.y, b.w, b.h, b.h / 2, TEXT_WHITE);
   else {
     for (int i = 0; i < 3; i++)
@@ -521,12 +519,9 @@ void playFinishTheLyric() {
 // ---------- The main flow ----------
 void showReadyScreen() {
   gfx->fillScreen(BRAND_PINK);
-  centredLine("Karry-No-Key", 100, &FredokaBold40);
-  centredLine("How long will you sing?", 148, &FredokaMedium20);
-  drawButton(SHORT_BUTTON, String(SHORT_SING_SECONDS) + " sec", singSeconds == SHORT_SING_SECONDS);
-  drawButton(LONG_BUTTON, String(LONG_SING_SECONDS) + " sec", singSeconds == LONG_SING_SECONDS);
-  drawButton(SING_BUTTON, "Tap to sing", true);
-  drawButton(PLAY_BUTTON, "Tap to play", false);
+  centredLine("Karry-No-Key", 105, &FredokaBold40);
+  drawButton(SING_BUTTON, "Tap to sing", true, &FredokaBold40);
+  drawButton(PLAY_BUTTON, "Tap to play (Beta)", false);
   if (strlen(WATCH_KEY) > 0)
     centredLine("Find my code: " + findCode.substring(0, 3) + " " + findCode.substring(3), 475, &FredokaMedium20);
   gfx->flush();
@@ -551,8 +546,22 @@ int countdownTap() {
   return hit;
 }
 
+// After "Tap to sing": pick 12 or 30 seconds. Returns the seconds, or 0 for Back.
+int chooseSingLength() {
+  gfx->fillScreen(BRAND_PINK);
+  centredLine("How long will", 130, &FredokaBold40);
+  centredLine("you sing?", 180, &FredokaBold40);
+  drawButton(SHORT_BUTTON, String(SHORT_SING_SECONDS) + " sec", true, &FredokaBold40);
+  drawButton(LONG_BUTTON, String(LONG_SING_SECONDS) + " sec", true, &FredokaBold40);
+  gfx->flush();
+  const Button lengthButtons[2] = { SHORT_BUTTON, LONG_BUTTON };
+  int pick = waitForChoice(lengthButtons, 2, 30000);   // BOOT = 12 seconds; nothing for 30 s = home
+  return pick == 0 ? SHORT_SING_SECONDS : pick == 1 ? LONG_SING_SECONDS : 0;   // 0 = back home
+}
+
 void singAndIdentify() {
-  const int RECORD_SECONDS = singSeconds;
+  const int RECORD_SECONDS = chooseSingLength();
+  if (RECORD_SECONDS == 0) return;   // nothing picked within 30 seconds: back home
   const uint32_t frames = (uint32_t)SAMPLE_RATE * RECORD_SECONDS;
   const uint32_t stereoBytes = frames * 2 * 2;          // 2 channels x 2 bytes each
   const uint32_t wavBytes = 44 + frames * 2;            // mono .wav file
@@ -730,16 +739,15 @@ void setup() {
 void loop() {
   if (WiFi.status() != WL_CONNECTED) { delay(500); return; }
   showReadyScreen();
-  const Button homeButtons[4] = { SING_BUTTON, PLAY_BUTTON, SHORT_BUTTON, LONG_BUTTON };
+  const Button homeButtons[2] = { SING_BUTTON, PLAY_BUTTON };
   // Wait for a tap (BOOT counts as "Tap to sing"). Every 20 seconds of waiting, check in with Find my.
   int choice;
-  while ((choice = waitForChoice(homeButtons, 4, CHECKIN_EVERY_MS)) < 0) {
+  while ((choice = waitForChoice(homeButtons, 2, CHECKIN_EVERY_MS)) < 0) {
     if (checkIn()) {
       ringUntilFound();
       showReadyScreen();
     }
   }
   if (choice == 0) singAndIdentify();
-  else if (choice == 1) playFinishTheLyric();
-  else singSeconds = (choice == 2) ? SHORT_SING_SECONDS : LONG_SING_SECONDS;   // then the home screen redraws
+  else playFinishTheLyric();
 }
