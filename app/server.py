@@ -95,19 +95,42 @@ def load_env():
 # Anyone with the link can use the app, so limit how often one person can sing (each sing uses
 # one ACRCloud recognition from the trial).
 SINGS_PER_HOUR = 30
+# A backstop for everyone together, in case someone fakes lots of different addresses.
+TOTAL_SINGS_PER_HOUR = 300
+# Saves and "Not my song" taps from the watch routes, per visitor.
+WATCH_ACTIONS_PER_HOUR = 30
 _recent_sings = {}   # visitor address -> times they sang in the last hour
+_recent_watch_actions = {}
+_all_sings = []      # times anyone sang in the last hour
 _rate_lock = threading.Lock()
 
 
-def allowed_to_sing(visitor):
+def _under_limit(log, key, limit):
+    """Record one more use for this key; False if it has already hit the hourly limit."""
     now = time.time()
     with _rate_lock:
-        times = [t for t in _recent_sings.get(visitor, []) if now - t < 3600]
-        if len(times) >= SINGS_PER_HOUR:
-            _recent_sings[visitor] = times
+        times = [t for t in log.get(key, []) if now - t < 3600]
+        if len(times) >= limit:
+            log[key] = times
             return False
         times.append(now)
-        _recent_sings[visitor] = times
+        log[key] = times
+        return True
+
+
+def allowed_watch_action(visitor):
+    return _under_limit(_recent_watch_actions, visitor, WATCH_ACTIONS_PER_HOUR)
+
+
+def allowed_to_sing(visitor):
+    if not _under_limit(_recent_sings, visitor, SINGS_PER_HOUR):
+        return False
+    now = time.time()
+    with _rate_lock:
+        _all_sings[:] = [t for t in _all_sings if now - t < 3600]
+        if len(_all_sings) >= TOTAL_SINGS_PER_HOUR:
+            return False
+        _all_sings.append(now)
         return True
 
 
@@ -341,9 +364,14 @@ class Handler(BaseHTTPRequestHandler):
             self.send_text("error\n" + message)
 
     def visitor(self):
-        # On Render, the visitor's real address arrives in this header.
-        forwarded = self.headers.get("X-Forwarded-For", "")
-        return forwarded.split(",")[0].strip() or self.client_address[0]
+        # On Render, the visitor's address arrives in a header. Anyone can add a fake address to
+        # the start of X-Forwarded-For, so use the address Render's own network adds: Cloudflare's
+        # CF-Connecting-IP if it's there, otherwise the LAST entry in X-Forwarded-For.
+        real = self.headers.get("CF-Connecting-IP", "").strip()
+        if real:
+            return real
+        forwarded = [a.strip() for a in self.headers.get("X-Forwarded-For", "").split(",") if a.strip()]
+        return forwarded[-1] if forwarded else self.client_address[0]
 
     def save_from_web(self):
         """The web page's "Add to playlist" button. Saves only a song this server just identified."""
@@ -371,12 +399,17 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/save":
             self.save_from_web()
             return
+        if self.path in ("/save-watch", "/reject-watch") and not allowed_watch_action(self.visitor()):
+            self.send_text("error\nToo many taps. Try again in a little while.")
+            return
         if self.path == "/save-watch":
             self.save_watch_match()
+            last_watch_match = {}   # each match can only be saved once
             return
         if self.path == "/reject-watch":
             # "Not my song" on the watch: a wrong guess. Recorded so we can measure accuracy.
             song = last_watch_match or {}
+            last_watch_match = {}
             track("watch_rejected_match", {"title": song.get("title", ""), "artist": song.get("artist", ""),
                                            "acr_title": song.get("acr_title", song.get("title", ""))})
             print(f"Not my song: {song.get('title', '?')} by {song.get('artist', '?')}")
@@ -399,7 +432,10 @@ class Handler(BaseHTTPRequestHandler):
                                  "message": "That's a lot of singing! Take a break and try again in a little while."})
             return
 
-        length = int(self.headers.get("Content-Length", 0))
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            length = 0
         if length <= 0 or length > MAX_UPLOAD_BYTES:
             self.send_json(400, {"ok": False, "matches": [], "message": "Recording is empty or too big."})
             return
