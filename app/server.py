@@ -389,33 +389,49 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, {"ok": True, "songs": newest, "top_song": top, "song_count": len(songs),
                              "playlist_url": url})
 
-    def send_game_round(self):
-        """Finish the Lyric: one round from a random song in the "Sung It" playlist."""
+    def send_game_round(self, for_watch=False):
+        """Finish the Lyric: one round from a random song in the "Sung It" playlist.
+        The watch gets plain text, one item per line: status, title, artist, before, after,
+        choice 1, choice 2, choice 3, answer (or "error" and a message)."""
+        def reply(status, data):
+            if not for_watch:
+                self.send_json(status, data)
+            elif data.get("ok"):
+                self.send_text("\n".join(["round", data["title"], data["artist"], data["before"], data["after"],
+                                          *data["choices"], data["answer"]]))
+            else:
+                self.send_text("error\n" + data.get("message", "Something went wrong."))
+        if for_watch and not self.is_my_watch():
+            self.send_response(403)
+            self.end_headers()
+            return
         if not allowed_game_round(self.visitor()):
-            self.send_json(429, {"ok": False, "message": "That's a lot of rounds! Take a break and come back soon."})
+            reply(429, {"ok": False, "message": "That's a lot of rounds! Take a break and come back soon."})
             return
         try:
             songs = spotify.playlist_songs(load_env())
         except (spotify.SpotifyError, urllib.error.URLError, KeyError) as e:
             print("Couldn't read the playlist for the game:", e)
-            self.send_json(502, {"ok": False, "message": "Couldn't reach Spotify. Try again in a moment."})
+            reply(502, {"ok": False, "message": "Couldn't reach Spotify. Try again in a moment."})
             return
         if not songs:
-            self.send_json(200, {"ok": False, "message": "Your Sung It playlist is empty. Sing a song first!"})
+            reply(200, {"ok": False, "message": "Your Sung It playlist is empty. Sing a song first!"})
             return
         round_ = game.next_round(songs)
         if not round_:
-            self.send_json(200, {"ok": False, "message": "Couldn't find lyrics for your songs yet. Sing a few more!"})
+            reply(200, {"ok": False, "message": "Couldn't find lyrics for your songs yet. Sing a few more!"})
             return
-        self.send_json(200, {"ok": True, **round_})
+        if for_watch:
+            track("watch_game_round", {"title": round_["title"]})
+        reply(200, {"ok": True, **round_})
 
     def do_GET(self):
         url = urlparse(self.path)
         if url.path in ("/spotify/login", "/spotify/callback"):
             self.handle_spotify_pages(url)
             return
-        if url.path == "/game/round":
-            self.send_game_round()
+        if url.path in ("/game/round", "/game/round-watch"):
+            self.send_game_round(for_watch=url.path == "/game/round-watch")
             return
         if url.path == "/recent-songs":
             self.send_recent_songs()
@@ -599,6 +615,16 @@ class Handler(BaseHTTPRequestHandler):
             print(f"Not my song: {song.get('title', '?')} by {song.get('artist', '?')}")
             self.send_text("ok")
             return
+        if self.path == "/watch/game-answer":
+            # The watch reporting a Finish the Lyric answer, for PostHog. Body: "correct=1".
+            if not self.is_my_watch():
+                self.send_response(403)
+                self.end_headers()
+                return
+            body = self.read_body(200).decode("ascii", "ignore")
+            track("watch_game_answered", {"correct": "correct=1" in body})
+            self.send_text("ok")
+            return
         if self.path == "/watch/checkin":
             self.watch_checkin()
             return
@@ -642,7 +668,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/identify-watch":
             top = result["matches"][0] if result.get("matches") else {}
             last_watch_match = top
-            track("watch_sang")
+            seconds = self.headers.get("X-Sing-Seconds", "")
+            track("watch_sang", {"seconds": int(seconds) if seconds.isdigit() else None})
             if top:
                 track("watch_song_matched", {"title": top["title"], "artist": top["artist"],
                                              "score": top.get("score"),

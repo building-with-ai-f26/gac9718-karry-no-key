@@ -34,7 +34,9 @@
 #endif
 
 // ---------- Settings ----------
-const int RECORD_SECONDS = 12;
+const int SHORT_SING_SECONDS = 12;                   // the two lengths you can pick on the home screen
+const int LONG_SING_SECONDS = 30;
+int singSeconds = SHORT_SING_SECONDS;                  // the one currently picked
 const int SAMPLE_RATE = 16000;                        // 16,000 sound samples a second: plenty for a voice
 const uint8_t MIC_GAIN = 10;                          // microphone boost: 10 = 30 dB (range 0-14)
 const int BOOT_BUTTON = 0;                            // the watch's BOOT button
@@ -49,7 +51,12 @@ String findCode;
 // ---------- On-screen buttons (position and size in pixels; the screen is 410 x 502) ----------
 // Defined up here, before any functions, so Arduino's automatic setup can see them.
 struct Button { int x, y, w, h; };
-const Button SING_BUTTON   = { 55, 300, 300, 110 };
+const Button SHORT_BUTTON  = { 55, 168, 145, 56 };    // "12 sec"
+const Button LONG_BUTTON   = { 210, 168, 145, 56 };   // "30 sec"
+const Button SING_BUTTON   = { 55, 245, 300, 96 };
+const Button PLAY_BUTTON   = { 55, 358, 300, 76 };
+const Button RESTART_BUTTON = { 30, 400, 170, 64 };   // shown while you sing
+const Button STOP_BUTTON    = { 210, 400, 170, 64 };
 const Button ADD_BUTTON    = { 30, 330, 350, 70 };
 const Button REJECT_BUTTON = { 30, 415, 350, 60 };
 
@@ -425,18 +432,127 @@ void ringUntilFound() {
   }
 }
 
+// ---------- Finish the Lyric on the watch (tap the missing word) ----------
+const int GAME_ROUNDS = 5;
+const Button CHOICE_BUTTONS[3] = { { 40, 290, 330, 58 }, { 40, 356, 330, 58 }, { 40, 422, 330, 58 } };
+const Button AGAIN_BUTTON = { 55, 300, 300, 80 };
+const Button HOME_BUTTON  = { 55, 395, 300, 70 };
+
+// Split a reply into lines. Returns how many it found (up to maxLines).
+int splitLines(const String &text, String *lines, int maxLines) {
+  int count = 0, start = 0;
+  while (count < maxLines && start <= (int)text.length()) {
+    int end = text.indexOf('\n', start);
+    if (end < 0) end = text.length();
+    lines[count++] = text.substring(start, end);
+    start = end + 1;
+  }
+  return count;
+}
+
+// Ask the app for a round. Lines: status, title, artist, before, after, 3 choices, answer.
+bool fetchRound(String *r) {
+  HTTPClient http;
+  openRequest(http, "/game/round-watch", WAKE_UP_MS);
+  int code = http.GET();
+  String reply = code == 200 ? http.getString() : "";
+  http.end();
+  Serial.printf("Game round replied %d\n", code);
+  int n = splitLines(reply, r, 9);
+  return n == 9 && r[0] == "round";
+}
+
+// The lyric line with a gap, in the biggest font that leaves room for the buttons.
+void drawLyric(const String &before, const String &gap, const String &after) {
+  String line = before + (before.length() ? " " : "") + gap + after;
+  if (after.length() && after[0] != ',' && after[0] != '.' && after[0] != '!' && after[0] != '?')
+    line = before + (before.length() ? " " : "") + gap + " " + after;
+  int maxW = LCD_WIDTH - 40;
+  const GFXfont *font = textWidth(&FredokaSemi28, line) <= 3 * maxW ? &FredokaSemi28 : &FredokaMedium20;
+  centredWrapped(line, 155, font);
+}
+
+void playFinishTheLyric() {
+  int score = 0;
+  for (int round = 1; round <= GAME_ROUNDS; round++) {
+    showScreen("Finish the Lyric", "Finding a song...");
+    String r[9];
+    if (!fetchRound(r)) {
+      showThenReturn("Finish the Lyric", r[0] == "error" ? r[1] : String("Couldn't reach Karry-No-Key. Try again in a minute."));
+      return;
+    }
+    // r: 0 status, 1 title, 2 artist, 3 before, 4 after, 5-7 choices, 8 answer
+    gfx->fillScreen(BRAND_PINK);
+    centredLine("Round " + String(round) + " of " + String(GAME_ROUNDS) + "   Score " + String(score), 55, &FredokaMedium20);
+    centredWrapped(r[1], 95, &FredokaMedium20);
+    drawLyric(r[3], "____", r[4]);
+    for (int i = 0; i < 3; i++) drawButton(CHOICE_BUTTONS[i], r[5 + i], false);
+    gfx->flush();
+
+    int pick = waitForChoice(CHOICE_BUTTONS, 3, 60000);
+    if (pick < 0) { showThenReturn("Finish the Lyric", "Game paused. Tap to play again whenever you like."); return; }
+    bool right = r[5 + pick] == r[8];
+    if (right) score++;
+
+    // Show the answer: the right word filled in, and which button was right.
+    gfx->fillScreen(BRAND_PINK);
+    centredLine(right ? "Correct! +10" : "Not quite!", 75, &FredokaBold40);
+    drawLyric(r[3], r[8], r[4]);
+    for (int i = 0; i < 3; i++) if (r[5 + i] == r[8]) drawButton(CHOICE_BUTTONS[i], r[5 + i], true);
+    gfx->flush();
+    HTTPClient http;   // tell the app, for PostHog
+    openRequest(http, "/watch/game-answer", 5000);
+    http.POST(String("correct=") + (right ? "1" : "0"));
+    http.end();
+    delay(2000);
+  }
+
+  gfx->fillScreen(BRAND_PINK);
+  centredLine("You scored", 85, &FredokaSemi28);
+  centredLine(String(score), 205, &FredokaDigits110);        // this font only has digits
+  centredLine("out of " + String(GAME_ROUNDS), 255, &FredokaSemi28);
+  drawButton(AGAIN_BUTTON, "Play again", true);
+  drawButton(HOME_BUTTON, "Home", false);
+  gfx->flush();
+  const Button endButtons[2] = { AGAIN_BUTTON, HOME_BUTTON };
+  if (waitForChoice(endButtons, 2, 30000) == 0) playFinishTheLyric();
+}
+
 // ---------- The main flow ----------
 void showReadyScreen() {
   gfx->fillScreen(BRAND_PINK);
-  centredLine("Karry-No-Key", 150, &FredokaBold40);
-  centredWrapped("Sing 12 seconds of the song stuck in your head", 205, &FredokaMedium20);
+  centredLine("Karry-No-Key", 100, &FredokaBold40);
+  centredLine("How long will you sing?", 148, &FredokaMedium20);
+  drawButton(SHORT_BUTTON, String(SHORT_SING_SECONDS) + " sec", singSeconds == SHORT_SING_SECONDS);
+  drawButton(LONG_BUTTON, String(LONG_SING_SECONDS) + " sec", singSeconds == LONG_SING_SECONDS);
   drawButton(SING_BUTTON, "Tap to sing", true);
+  drawButton(PLAY_BUTTON, "Tap to play", false);
   if (strlen(WATCH_KEY) > 0)
-    centredLine("Find my code: " + findCode.substring(0, 3) + " " + findCode.substring(3), 465, &FredokaMedium20);
+    centredLine("Find my code: " + findCode.substring(0, 3) + " " + findCode.substring(3), 475, &FredokaMedium20);
   gfx->flush();
 }
 
+// Draw the countdown screen: the seconds left, with Restart and Stop buttons.
+void showCountdown(int secondsLeft) {
+  gfx->fillScreen(BRAND_PINK);
+  centredLine("Sing!", 130, &FredokaBold40);
+  centredLine(String(secondsLeft), 320, &FredokaDigits110);
+  drawButton(RESTART_BUTTON, "Restart", false);
+  drawButton(STOP_BUTTON, "Stop", false);
+  gfx->flush();
+}
+
+// Was Restart or Stop tapped? 0 = Restart, 1 = Stop, -1 = neither. Waits for the finger to lift.
+int countdownTap() {
+  int x, y;
+  if (!readTouch(x, y)) return -1;
+  int hit = inside(RESTART_BUTTON, x, y) ? 0 : inside(STOP_BUTTON, x, y) ? 1 : -1;
+  if (hit >= 0) waitForRelease();
+  return hit;
+}
+
 void singAndIdentify() {
+  const int RECORD_SECONDS = singSeconds;
   const uint32_t frames = (uint32_t)SAMPLE_RATE * RECORD_SECONDS;
   const uint32_t stereoBytes = frames * 2 * 2;          // 2 channels x 2 bytes each
   const uint32_t wavBytes = 44 + frames * 2;            // mono .wav file
@@ -450,21 +566,35 @@ void singAndIdentify() {
     return;
   }
 
-  // Record, counting down on screen once a second.
+  // Record, counting down on screen once a second. Restart starts the countdown again;
+  // Stop goes back to the home screen. Taps are checked every quarter of a second.
   const uint32_t bytesPerSecond = (uint32_t)SAMPLE_RATE * 4;
+  const uint32_t bytesPerQuarter = bytesPerSecond / 4;
   uint32_t got = 0;
-  for (int s = RECORD_SECONDS; s > 0; s--) {
-    gfx->fillScreen(BRAND_PINK);
-    centredLine("Sing!", 150, &FredokaBold40);
-    centredLine(String(s), 330, &FredokaDigits110);
-    gfx->flush();
-    uint32_t target = got + bytesPerSecond;
-    while (got < target) {
-      size_t n = i2s.readBytes((char *)stereo + got, target - got);
-      if (n == 0) break;
-      got += n;
+  bool restarted;
+  do {
+    restarted = false;
+    got = 0;
+    for (int s = RECORD_SECONDS; s > 0 && !restarted; s--) {
+      showCountdown(s);
+      for (int q = 0; q < 4; q++) {
+        uint32_t target = got + bytesPerQuarter;
+        while (got < target) {
+          size_t n = i2s.readBytes((char *)stereo + got, target - got);
+          if (n == 0) break;
+          got += n;
+        }
+        int tap = countdownTap();
+        if (tap == 1) {                       // Stop
+          free(stereo); free(wav);
+          Serial.println("Stopped singing");
+          return;
+        }
+        if (tap == 0) { restarted = true; break; }   // Restart
+      }
     }
-  }
+    if (restarted) Serial.println("Restarted the countdown");
+  } while (restarted);
   const uint32_t framesGot = got / 4;
 
   // The mic may arrive on the left or right channel: keep whichever is louder.
@@ -494,6 +624,7 @@ void singAndIdentify() {
   HTTPClient http;
   openRequest(http, "/identify-watch", WAKE_UP_MS);
   http.addHeader("Content-Type", "audio/wav");
+  http.addHeader("X-Sing-Seconds", String(RECORD_SECONDS));
   int code = http.POST(wav, 44 + framesGot * 2);
   String reply = code > 0 ? http.getString() : "";
   http.end();
@@ -599,13 +730,16 @@ void setup() {
 void loop() {
   if (WiFi.status() != WL_CONNECTED) { delay(500); return; }
   showReadyScreen();
-  const Button singOnly[1] = { SING_BUTTON };
-  // Wait for "Tap to sing" (or BOOT). Every 20 seconds of waiting, check in with Find my.
-  while (waitForChoice(singOnly, 1, CHECKIN_EVERY_MS) < 0) {
+  const Button homeButtons[4] = { SING_BUTTON, PLAY_BUTTON, SHORT_BUTTON, LONG_BUTTON };
+  // Wait for a tap (BOOT counts as "Tap to sing"). Every 20 seconds of waiting, check in with Find my.
+  int choice;
+  while ((choice = waitForChoice(homeButtons, 4, CHECKIN_EVERY_MS)) < 0) {
     if (checkIn()) {
       ringUntilFound();
       showReadyScreen();
     }
   }
-  singAndIdentify();
+  if (choice == 0) singAndIdentify();
+  else if (choice == 1) playFinishTheLyric();
+  else singSeconds = (choice == 2) ? SHORT_SING_SECONDS : LONG_SING_SECONDS;   // then the home screen redraws
 }
