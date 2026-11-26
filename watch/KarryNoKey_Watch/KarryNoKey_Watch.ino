@@ -389,6 +389,10 @@ String askApp(const char *path) {
   String reply = code == 200 ? http.getString() : "";
   http.end();
   Serial.printf("%s replied %d: %s\n", path, code, reply.c_str());
+  // Say what went wrong, so the screen shows something more useful than "couldn't reach".
+  if (code == 404) return "error\nThe live site doesn't have this feature yet. Deploy the latest code on Render.";
+  if (code == 403) return "error\nThe watch key doesn't match the live site. Check WATCH_KEY in secrets.h and Render.";
+  if (code > 0 && code != 200) return "error\nKarry-No-Key replied " + String(code) + ". Try again in a minute.";
   return reply;
 }
 

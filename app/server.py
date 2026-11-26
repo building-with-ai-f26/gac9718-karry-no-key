@@ -518,9 +518,9 @@ class Handler(BaseHTTPRequestHandler):
             body = [f"lyrics", str(st["progress_ms"]), str(st["duration_ms"]), st["uri"], str(len(lines))]
             body += [f"{ms}|{text}" for ms, text in lines]
             self.send_text("\n".join(body))
-        except (spotify.SpotifyError, urllib.error.URLError, KeyError) as e:
-            print("Play it / Sing it failed:", e)
-            message = str(e) if isinstance(e, spotify.SpotifyError) else "Couldn't reach Spotify."
+        except Exception as e:   # always answer the watch with a reason, never just hang up
+            print("Play it / Sing it failed:", repr(e))
+            message = str(e) if isinstance(e, spotify.SpotifyError) else "Couldn't reach Spotify. Try again in a moment."
             if "403" in message:
                 message = "Spotify said no. Check Spotify Premium is on, then try again."
             elif "Spotify said" in message:
