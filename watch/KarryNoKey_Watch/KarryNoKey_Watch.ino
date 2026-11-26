@@ -56,8 +56,18 @@ const Button SHORT_BUTTON  = { 20, 220, 180, 130 };   // "How long will you sing
 const Button LONG_BUTTON   = { 210, 220, 180, 130 };
 const Button RESTART_BUTTON = { 30, 400, 170, 64 };   // shown while you sing
 const Button STOP_BUTTON    = { 210, 400, 170, 64 };
-const Button ADD_BUTTON    = { 30, 330, 350, 70 };
-const Button REJECT_BUTTON = { 30, 415, 350, 60 };
+// "Is this [song]?" screen: three choices in a row, and "Not my song" underneath.
+const Button PLAYIT_BUTTON = { 15, 300, 122, 74 };
+const Button SAVEIT_BUTTON = { 144, 300, 122, 74 };
+const Button SINGIT_BUTTON = { 273, 300, 122, 74 };
+const Button REJECT_BUTTON = { 80, 395, 250, 58 };
+// "Playing on your phone" screen
+const Button SING_NOW_BUTTON = { 55, 250, 300, 80 };
+const Button SAVE_NOW_BUTTON = { 55, 345, 300, 70 };
+const Button DONE_BUTTON     = { 130, 430, 150, 52 };
+// Sing it screen
+const Button STOP_SINGING_BUTTON = { 130, 425, 150, 56 };
+const uint16_t SOFT_PINK = 0xFE9C;   // #FFD1E3, for the next lyric line
 
 // ---------- Screen ----------
 Arduino_DataBus *bus = new Arduino_ESP32QSPI(LCD_CS, LCD_SCLK, LCD_SDIO0, LCD_SDIO1, LCD_SDIO2, LCD_SDIO3);
@@ -430,6 +440,128 @@ void ringUntilFound() {
   }
 }
 
+// ---------- Play it and Sing it ----------
+// The reason after "error" in a reply, or a fallback.
+String errorReason(const String &reply, const char *fallback) {
+  int nl = reply.indexOf('\n');
+  return reply.startsWith("error") && nl >= 0 ? reply.substring(nl + 1) : String(fallback);
+}
+
+void singIt(const String &title);   // further down; Play it can lead straight into it
+
+// Play it: the song starts in Spotify on your phone. Then offer Sing it or Save it.
+void playIt(const String &title) {
+  showScreen("Play it", "Starting " + title + " on your phone...");
+  String reply = askApp("/watch/play");
+  if (!reply.startsWith("playing")) {
+    showThenReturn("Couldn't play it", errorReason(reply, "Couldn't reach Karry-No-Key."));
+    return;
+  }
+  gfx->fillScreen(BRAND_PINK);
+  centredLine("Playing on", 95, &FredokaBold40);
+  centredLine("your phone", 145, &FredokaBold40);
+  centredWrapped(title, 195, &FredokaMedium20);
+  drawButton(SING_NOW_BUTTON, "Sing it", true);
+  drawButton(SAVE_NOW_BUTTON, "Save it", false);
+  drawButton(DONE_BUTTON, "Home", false);
+  gfx->flush();
+  const Button next[3] = { SING_NOW_BUTTON, SAVE_NOW_BUTTON, DONE_BUTTON };
+  int choice = waitForChoice(next, 3, 60000);
+  if (choice == 0) singIt(title);
+  else if (choice == 1) saveToSpotify(title);
+}
+
+// Sing it: the lyrics on your wrist, in time with the song playing on your phone.
+const int MAX_LYRIC_LINES = 250;
+uint32_t lyricTimes[MAX_LYRIC_LINES];
+String lyricText[MAX_LYRIC_LINES];
+
+// Read the next line of a reply, starting at pos (which moves past it).
+String nextLine(const String &text, int &pos) {
+  int end = text.indexOf('\n', pos);
+  if (end < 0) end = text.length();
+  String line = text.substring(pos, end);
+  pos = end + 1;
+  return line;
+}
+
+void drawLyrics(const String &title, int idx, int count, bool playing) {
+  gfx->fillScreen(BRAND_PINK);
+  centredWrapped(title, 50, &FredokaMedium20, SOFT_PINK);
+  String now = idx >= 0 ? lyricText[idx] : String("Get ready...");
+  const GFXfont *big = textWidth(&FredokaBold40, now) <= 3 * (LCD_WIDTH - 40) ? &FredokaBold40 : &FredokaSemi28;
+  int y = centredWrapped(now, 175, big);
+  if (idx + 1 < count) centredWrapped(lyricText[idx + 1], y + 30, &FredokaMedium20, SOFT_PINK);
+  if (!playing) centredLine("Paused on your phone", 405, &FredokaMedium20);
+  drawButton(STOP_SINGING_BUTTON, "Stop", false);
+  gfx->flush();
+}
+
+void singIt(const String &title) {
+  showScreen("Sing it", "Getting the lyrics for " + title + "...");
+  unsigned long asked = millis();
+  String reply = askApp("/watch/lyrics");
+  unsigned long latency = millis() - asked;
+  if (!reply.startsWith("lyrics")) {
+    showThenReturn("Sing it", errorReason(reply, "Couldn't reach Karry-No-Key."));
+    return;
+  }
+  // Reply: "lyrics", progress ms, song length ms, song id, number of lines, then "ms|line" lines.
+  int pos = 0;
+  nextLine(reply, pos);
+  uint32_t progress = nextLine(reply, pos).toInt();
+  uint32_t duration = nextLine(reply, pos).toInt();
+  String songId = nextLine(reply, pos);
+  int count = min((int)nextLine(reply, pos).toInt(), MAX_LYRIC_LINES);
+  for (int i = 0; i < count; i++) {
+    String line = nextLine(reply, pos);
+    int bar = line.indexOf('|');
+    lyricTimes[i] = line.substring(0, bar).toInt();
+    lyricText[i] = line.substring(bar + 1);
+  }
+
+  // Keep our own clock, and check in with Spotify every 8 seconds to stay in time.
+  uint32_t base = progress;
+  unsigned long t0 = millis() - latency / 2;   // the reply was about half a trip old when it arrived
+  bool playing = true;
+  unsigned long lastSync = millis();
+  int shown = -2;
+  bool shownPlaying = true;
+  while (true) {
+    uint32_t at = playing ? base + (millis() - t0) : base;
+    if (duration > 0 && at > duration + 1500) break;          // song finished
+    int idx = -1;
+    while (idx + 1 < count && lyricTimes[idx + 1] <= at + 200) idx++;   // show a line just before it's sung
+    if (idx != shown || playing != shownPlaying) {
+      drawLyrics(title, idx, count, playing);
+      shown = idx;
+      shownPlaying = playing;
+    }
+    int x, y;
+    if ((readTouch(x, y) && inside(STOP_SINGING_BUTTON, x, y)) || digitalRead(BOOT_BUTTON) == LOW) {
+      waitForRelease();
+      break;
+    }
+    if (millis() - lastSync > 8000) {
+      lastSync = millis();
+      unsigned long sent = millis();
+      String p = askApp("/watch/progress");   // "progress", ms, playing 1/0, song id
+      if (p.startsWith("progress")) {
+        int q = 0;
+        nextLine(p, q);
+        uint32_t ms = nextLine(p, q).toInt();
+        bool isPlaying = nextLine(p, q) == "1";
+        String id = nextLine(p, q);
+        if (id != songId) { showThenReturn("Sing it", "A different song is playing now."); return; }
+        base = ms;
+        t0 = millis() - (millis() - sent) / 2;
+        playing = isPlaying;
+      }
+    }
+    delay(50);
+  }
+}
+
 // ---------- Finish the Lyric on the watch (tap the missing word) ----------
 const int GAME_ROUNDS = 5;
 const Button CHOICE_BUTTONS[3] = { { 40, 290, 330, 58 }, { 40, 356, 330, 58 }, { 40, 422, 330, 58 } };
@@ -661,16 +793,22 @@ void singAndIdentify() {
     String question = lines[1] + "?";
     // Big title if it fits on two lines, otherwise a smaller size so it stays above the buttons.
     const GFXfont *titleFont = textWidth(&FredokaBold40, question) <= 2 * (LCD_WIDTH - 40) ? &FredokaBold40 : &FredokaSemi28;
-    int y = centredWrapped(question, 145, titleFont);
+    int y = centredWrapped(question, 135, titleFont);
     centredWrapped(lines[2], y + 4, &FredokaMedium20);
-    drawButton(ADD_BUTTON, "Add to playlist", true);
+    drawButton(PLAYIT_BUTTON, "Play it", true);
+    drawButton(SAVEIT_BUTTON, "Save it", true);
+    drawButton(SINGIT_BUTTON, "Sing it", true);
     drawButton(REJECT_BUTTON, "Not my song", false);
     gfx->flush();
-    const Button choices[2] = { ADD_BUTTON, REJECT_BUTTON };
-    int choice = waitForChoice(choices, 2, 30000);
+    const Button choices[4] = { PLAYIT_BUTTON, SAVEIT_BUTTON, SINGIT_BUTTON, REJECT_BUTTON };
+    int choice = waitForChoice(choices, 4, 30000);
     if (choice == 0) {
-      saveToSpotify(lines[1]);
+      playIt(lines[1]);
     } else if (choice == 1) {
+      saveToSpotify(lines[1]);
+    } else if (choice == 2) {
+      singIt(lines[1]);
+    } else if (choice == 3) {
       askApp("/reject-watch");   // tells PostHog it guessed wrong
       showThenReturn("Got it", "Not saved. Try singing the chorus again.");
     } else {
@@ -685,6 +823,8 @@ void singAndIdentify() {
 void setup() {
   Serial.begin(115200);
   pinMode(BOOT_BUTTON, INPUT_PULLUP);
+  pinMode(SPEAKER_EN, OUTPUT);
+  digitalWrite(SPEAKER_EN, HIGH);
   if (!gfx->begin()) Serial.println("Screen memory couldn't be set up (check PSRAM: OPI PSRAM)");
   gfx->setTextWrap(false);   // we break lines ourselves, neatly between words
   showScreen("Karry-No-Key", "Starting up...");

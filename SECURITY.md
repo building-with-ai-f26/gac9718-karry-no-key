@@ -102,3 +102,13 @@ I asked Claude to read the server code and try to break the live app. It found:
 - `WATCH_KEY` lives only in `.env`, Render's settings and the watch's git-ignored `secrets.h`.
 - **New remaining issue:** someone who keeps guessing Find my codes can trigger the overall wrong-code limit, which locks the owner out for up to an hour.
 - **New remaining issue:** LRCLIB lyrics are community-submitted, which is fine for a prototype, but a launch would need licensed lyrics.
+
+## Update (26 Nov 2026): Play it and Sing it
+
+| New route | What it does | Protection |
+|---|---|---|
+| `POST /watch/play` | Starts the watch's last matched song in Spotify on the owner's phone | Needs `WATCH_KEY`; only plays the song the watch just matched |
+| `POST /watch/lyrics`, `POST /watch/progress` | Timed lyrics (LRCLIB) and where the song is up to | Needs `WATCH_KEY`; read-only |
+
+- Spotify now has two extra permissions: control playback (`user-modify-playback-state`) and see what's playing (`user-read-playback-state`). The new refresh token went into `.env` and Render only, and was never shown on screen.
+- **Remaining issue:** Play it always plays on the owner's Spotify, because there's no sign-in yet. Personal Spotify for each user comes with sign-in (Spotify development mode allows 5 users).

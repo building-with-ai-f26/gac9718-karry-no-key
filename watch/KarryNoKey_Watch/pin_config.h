@@ -18,6 +18,9 @@
 #define TP_INT 38
 #define TP_RESET 9
 
+// AUDIO
+#define SPEAKER_EN 46
+
 // SD
 const int SDMMC_CLK = 2;
 const int SDMMC_CMD = 1;

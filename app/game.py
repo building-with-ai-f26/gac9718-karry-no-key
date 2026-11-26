@@ -28,9 +28,11 @@ _cache_lock = threading.Lock()
 CACHE_SECONDS = 6 * 3600
 
 
-def fetch_lyrics(title, artist):
-    """Plain lyrics for a song from LRCLIB, or "" if it has none."""
-    key = (title.lower(), artist.lower())
+def fetch_lyrics(title, artist, synced=False):
+    """Lyrics for a song from LRCLIB, or "" if it has none. synced=True gives the timed version
+    ("[01:23.45] a line"), used by Sing it to show each line as it's sung."""
+    field = "syncedLyrics" if synced else "plainLyrics"
+    key = (title.lower(), artist.lower(), field)
     with _cache_lock:
         hit = _lyrics_cache.get(key)
     if hit and time.time() - hit[0] < CACHE_SECONDS:
@@ -41,8 +43,8 @@ def fetch_lyrics(title, artist):
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
             for record in json.loads(resp.read().decode()):
-                if record.get("plainLyrics") and not record.get("instrumental"):
-                    text = record["plainLyrics"]
+                if record.get(field) and not record.get("instrumental"):
+                    text = record[field]
                     break
     except (urllib.error.URLError, ValueError, TimeoutError) as e:
         print("LRCLIB lookup failed:", e)
@@ -122,3 +124,17 @@ def next_round(songs, rng=random):
             if r:
                 return r
     return None
+
+
+_TIMED_LINE = re.compile(r"^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$")
+
+
+def timed_lines(title, artist):
+    """[(milliseconds, line), ...] for Sing it, or [] if LRCLIB has no timed lyrics for the song."""
+    lines = []
+    for raw in fetch_lyrics(title, artist, synced=True).splitlines():
+        m = _TIMED_LINE.match(raw.strip())
+        if m:
+            ms = int((int(m.group(1)) * 60 + float(m.group(2))) * 1000)
+            lines.append((ms, m.group(3).strip() or "~ music ~"))
+    return lines[:250]

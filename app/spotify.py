@@ -24,7 +24,8 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOKEN_FILE = os.path.join(ROOT, ".spotify_token.json")
 REDIRECT_URI = "http://127.0.0.1:8000/spotify/callback"
-SCOPES = "playlist-modify-private playlist-modify-public playlist-read-private"
+SCOPES = ("playlist-modify-private playlist-modify-public playlist-read-private "
+          "user-modify-playback-state user-read-playback-state")   # play songs on your phone, see what's playing
 PLAYLIST_NAME = "Sung It"
 PLAYLIST_DESCRIPTION = "Songs I sang into Karry-No-Key"
 
@@ -77,6 +78,7 @@ def login_url(env):
         "redirect_uri": REDIRECT_URI,
         "scope": SCOPES,
         "state": _login_state,
+        "show_dialog": "true",   # always show the approval page, so new permissions are asked for
     })
     return "https://accounts.spotify.com/authorize?" + query
 
@@ -101,10 +103,13 @@ def finish_login(env, code, state):
     if not _login_state or state != _login_state:
         raise SpotifyError("This login link expired. Go to http://127.0.0.1:8000/spotify/login again.")
     data = _token_request(env, {"grant_type": "authorization_code", "code": code, "redirect_uri": REDIRECT_URI})
+    old = _read_token()
     _write_token({
         "refresh_token": data["refresh_token"],
         "access_token": data["access_token"],
         "expires_at": time.time() + data.get("expires_in", 3600) - 60,
+        "scope": data.get("scope", ""),              # which permissions Spotify actually granted
+        **({"playlist_id": old["playlist_id"]} if old.get("playlist_id") else {}),
     })
 
 
@@ -252,3 +257,32 @@ def playlist_songs(env):
         path = nxt.replace("https://api.spotify.com/v1", "") if nxt else None
     _songs_cache.update(time=time.time(), songs=songs)
     return songs
+
+
+def play_song(env, title, artist, track_id=None):
+    """Start a song in Spotify on your phone (or whichever device has Spotify open).
+    Needs Spotify Premium and the Spotify app open somewhere. Returns the Spotify URI."""
+    uri = _find_track(env, title, artist, track_id)
+    try:
+        _api(env, "PUT", "/me/player/play", {"uris": [uri]})
+        return uri
+    except SpotifyError as e:
+        if "404" not in str(e):   # 404 = no device is "active" right now; anything else is a real error
+            raise
+    # Nothing is playing: pick a device that has Spotify open, preferring a phone.
+    devices = _api(env, "GET", "/me/player/devices").get("devices", [])
+    devices.sort(key=lambda d: (d.get("type") != "Smartphone", not d.get("is_active")))
+    if not devices:
+        raise SpotifyError("Open Spotify on your phone, then tap Play it again.")
+    _api(env, "PUT", "/me/player/play?device_id=" + urllib.parse.quote(devices[0]["id"]), {"uris": [uri]})
+    return uri
+
+
+def playback_state(env):
+    """What's playing right now: position, playing or paused, which song and how long it is."""
+    state = _api(env, "GET", "/me/player") or {}
+    item = state.get("item") or {}
+    return {"progress_ms": state.get("progress_ms") or 0, "is_playing": bool(state.get("is_playing")),
+            "uri": item.get("uri", ""), "duration_ms": item.get("duration_ms") or 0,
+            "title": clean_title(item.get("name", "")),
+            "artist": (item.get("artists") or [{}])[0].get("name", "")}

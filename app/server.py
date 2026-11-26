@@ -482,6 +482,51 @@ class Handler(BaseHTTPRequestHandler):
         key = load_env().get("WATCH_KEY", "")
         return not key or hmac.compare_digest(self.headers.get("X-Watch-Key", ""), key)
 
+    def watch_music(self, path):
+        """/watch/play: start the matched song on your phone.
+        /watch/lyrics: the timed lyrics, plus where the song is up to (starting it if needed).
+        /watch/progress: just where the song is up to, so the watch can stay in time.
+        Replies are plain text, one item per line, starting with a status word or "error"."""
+        env = load_env()
+        song = dict(last_watch_match or {})
+        try:
+            if path == "/watch/progress":
+                st = spotify.playback_state(env)
+                self.send_text(f"progress\n{st['progress_ms']}\n{1 if st['is_playing'] else 0}\n{st['uri']}")
+                return
+            if not song:
+                self.send_text("error\nSing a song first.")
+                return
+            if path == "/watch/play":
+                spotify.play_song(env, song["title"], song["artist"], song.get("spotify_id"))
+                track("watch_play_it", {"title": song["title"], "artist": song["artist"]})
+                self.send_text("playing\n" + song["title"])
+                return
+            # /watch/lyrics
+            lines = game.timed_lines(song["title"], song["artist"])
+            if not lines:
+                track("watch_sing_it_no_lyrics", {"title": song["title"]})
+                self.send_text("error\nNo sing-along lyrics for this one yet.")
+                return
+            uri = spotify._find_track(env, song["title"], song["artist"], song.get("spotify_id"))
+            st = spotify.playback_state(env)
+            if st["uri"] != uri or not st["is_playing"]:
+                spotify.play_song(env, song["title"], song["artist"], song.get("spotify_id"))
+                time.sleep(1.0)   # give Spotify a moment to start before asking where it's up to
+                st = spotify.playback_state(env)
+            track("watch_sing_it", {"title": song["title"], "artist": song["artist"]})
+            body = [f"lyrics", str(st["progress_ms"]), str(st["duration_ms"]), st["uri"], str(len(lines))]
+            body += [f"{ms}|{text}" for ms, text in lines]
+            self.send_text("\n".join(body))
+        except (spotify.SpotifyError, urllib.error.URLError, KeyError) as e:
+            print("Play it / Sing it failed:", e)
+            message = str(e) if isinstance(e, spotify.SpotifyError) else "Couldn't reach Spotify."
+            if "403" in message:
+                message = "Spotify said no. Check Spotify Premium is on, then try again."
+            elif "Spotify said" in message:
+                message = "Spotify had a problem. Is the Spotify app open on your phone?"
+            self.send_text("error\n" + message)
+
     def watch_checkin(self):
         """The watch saying "I'm here": battery, signal and its on-screen code. Replies "ring" or "ok"."""
         global ring_requested
@@ -614,6 +659,14 @@ class Handler(BaseHTTPRequestHandler):
                                            "acr_title": song.get("acr_title", song.get("title", ""))})
             print(f"Not my song: {song.get('title', '?')} by {song.get('artist', '?')}")
             self.send_text("ok")
+            return
+        if self.path in ("/watch/play", "/watch/lyrics", "/watch/progress"):
+            # Play it and Sing it from the watch.
+            if not self.is_my_watch():
+                self.send_response(403)
+                self.end_headers()
+                return
+            self.watch_music(self.path)
             return
         if self.path == "/watch/game-answer":
             # The watch reporting a Finish the Lyric answer, for PostHog. Body: "correct=1".
